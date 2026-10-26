@@ -1,0 +1,1052 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&display=swap');
+
+:root {
+  font-family: 'Nunito', 'Trebuchet MS', ui-rounded, system-ui, sans-serif;
+  color: #fff;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 700;
+  background: #102a3d;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button { font: inherit; }
+
+.landing {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100svh;
+  overflow: hidden;
+  place-items: center;
+  background-color: #163a54;
+  background-image: url('/assets/landing.png');
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.landing::before,
+.landing__shade {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+}
+
+.landing::before {
+  content: '';
+  background: linear-gradient(180deg, rgb(9 29 48 / 21%) 0%, transparent 31%, rgb(8 27 45 / 11%) 62%, rgb(7 24 41 / 44%) 100%);
+}
+
+.landing__shade {
+  background: radial-gradient(ellipse at 50% 41%, transparent 28%, rgb(8 29 48 / 27%) 100%);
+}
+
+.top-actions {
+  position: absolute;
+  z-index: 2;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  display: flex;
+  gap: 11px;
+}
+
+.top-actions__button {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1.5px solid rgb(226 246 255 / 68%);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgb(132 203 240 / 88%), rgb(35 104 158 / 91%));
+  box-shadow: 0 4px 0 #174c73, 0 8px 18px rgb(5 27 46 / 30%), inset 0 2px 0 rgb(255 255 255 / 40%);
+  color: #fff;
+  cursor: pointer;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.top-actions__button:hover { filter: brightness(1.12); transform: translateY(-2px); }
+.top-actions__button:active { transform: translateY(2px); box-shadow: 0 2px 0 #174c73, 0 4px 10px rgb(5 27 46 / 25%); }
+.top-actions__button:focus-visible, .settings-panel button:focus-visible { outline: 3px solid #fff2a8; outline-offset: 4px; }
+.top-actions__button--muted { background: linear-gradient(180deg, rgb(94 139 164 / 88%), rgb(39 73 101 / 94%)); color: rgb(236 246 252 / 78%); }
+.top-actions__button svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+
+.settings-panel {
+  position: relative;
+  width: min(calc(100% - 32px), 510px);
+  max-height: min(770px, calc(100svh - 36px));
+  overflow: auto;
+  padding: clamp(25px, 5vw, 42px);
+  border: 2px solid rgb(209 238 255 / 77%);
+  border-radius: 30px;
+  background: linear-gradient(155deg, rgb(41 104 142 / 94%), rgb(17 53 83 / 96%) 62%, rgb(13 42 68 / 97%));
+  box-shadow: 0 8px 0 rgb(7 37 61 / 62%), 0 25px 70px rgb(3 19 33 / 54%), inset 0 2px 0 rgb(255 255 255 / 27%);
+  backdrop-filter: blur(10px);
+  animation: panel-appear 180ms ease-out both;
+}
+
+.settings-panel,
+.name-modal {
+  border: 2px solid rgb(206 239 255 / 76%);
+  background: linear-gradient(155deg, rgb(105 183 222 / 97%), rgb(44 125 174 / 98%) 43%, rgb(23 75 117 / 98%) 100%);
+  box-shadow: 0 7px 0 #174d75, 0 25px 70px rgb(3 19 33 / 54%), inset 0 2px 0 rgb(255 255 255 / 48%);
+}
+
+@keyframes panel-appear {
+  from { opacity: 0; transform: translateY(12px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.settings-panel__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px 8px 10px;
+  border: 1px solid rgb(217 242 255 / 52%);
+  border-radius: 13px;
+  background: rgb(255 255 255 / 10%);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.settings-panel__back:hover { background: rgb(255 255 255 / 18%); transform: translateX(-2px); }
+.settings-panel__back span { font-size: 20px; line-height: 16px; }
+
+.settings-panel__heading { margin: 22px 0 24px; text-align: center; }
+.settings-panel__eyebrow { color: #a8e2ff; font-size: 11px; font-weight: 900; letter-spacing: .2em; }
+.settings-panel__heading h1 { margin: 4px 0 3px; color: #fff; font-size: clamp(30px, 6vw, 42px); font-weight: 900; line-height: 1.1; text-shadow: 0 3px 0 rgb(10 38 60 / 50%); }
+.settings-panel__heading p { margin: 0; color: rgb(236 248 255 / 83%); font-size: 14px; }
+
+.controls-list { display: grid; gap: 9px; }
+.control-row { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 9px 7px 16px; border: 1px solid rgb(215 241 255 / 24%); border-radius: 16px; background: rgb(224 246 255 / 9%); }
+.control-row__label { color: #f5fbff; font-size: 15px; font-weight: 900; }
+
+.key-button {
+  min-width: 76px;
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1.5px solid #c9ecff;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #a4e2ff, #4fa5d5 55%, #327db2);
+  box-shadow: 0 3px 0 #1e5a83, inset 0 1px 0 rgb(255 255 255 / 69%);
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-shadow: 0 1px 2px rgb(17 69 104 / 55%);
+  transition: filter 130ms ease, transform 130ms ease, box-shadow 130ms ease;
+}
+
+.key-button:hover { filter: brightness(1.09); transform: translateY(-1px); }
+.key-button:active { transform: translateY(2px); box-shadow: 0 1px 0 #1e5a83, inset 0 1px 0 rgb(255 255 255 / 50%); }
+.key-button--listening { min-width: 126px; border-color: #fff0ad; background: linear-gradient(180deg, #ffe985, #ffad3e); box-shadow: 0 3px 0 #bd6222, inset 0 1px 0 rgb(255 255 255 / 65%); color: #fff; font-size: 11px; animation: key-pulse 850ms ease-in-out infinite alternate; }
+
+@keyframes key-pulse { to { filter: brightness(1.13); } }
+
+.settings-panel__hint { min-height: 20px; margin: 15px 2px 0; color: #bde8ff; font-size: 12px; font-weight: 800; text-align: center; }
+
+.landing__content {
+  display: flex;
+  width: min(100% - 36px, 620px);
+  flex-direction: column;
+  align-items: center;
+  padding: clamp(28px, 6vh, 64px) 0 44px;
+  transform: translateY(-1.5vh);
+}
+
+.landing__logo {
+  display: block;
+  width: min(100%, 540px);
+  height: auto;
+  margin: 0 auto clamp(12px, 3vh, 30px);
+  filter: drop-shadow(0 8px 0 rgb(30 55 71 / 24%)) drop-shadow(0 17px 27px rgb(2 22 39 / 35%));
+  user-select: none;
+}
+
+.menu {
+  display: grid;
+  width: min(100%, 325px);
+  gap: 13px;
+}
+
+.menu__button {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 63px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 20px;
+  color: #f8fcff;
+  cursor: pointer;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: .045em;
+  text-shadow: 0 2px 2px rgb(8 34 55 / 26%);
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.menu__button--primary {
+  min-height: 72px;
+  border-color: #fff0b3;
+  background: linear-gradient(180deg, #ffe985 0%, #ffbd45 48%, #f58a27 100%);
+  box-shadow: 0 5px 0 #b95d20, 0 10px 23px rgb(5 28 46 / 31%), inset 0 2px 0 rgb(255 255 255 / 76%), inset 0 -3px 0 rgb(199 89 25 / 24%);
+  color: #fffef7;
+  font-size: 24px;
+  text-shadow: 0 2px 2px rgb(143 70 20 / 43%);
+}
+
+.menu__button--secondary {
+  border-color: rgb(206 239 255 / 66%);
+  background: linear-gradient(180deg, rgb(138 211 247 / 88%) 0%, rgb(53 145 199 / 92%) 49%, rgb(35 98 154 / 96%) 100%);
+  box-shadow: 0 5px 0 #1b547d, 0 9px 20px rgb(5 27 46 / 27%), inset 0 2px 0 rgb(255 255 255 / 47%), inset 0 -3px 0 rgb(11 57 100 / 28%);
+}
+
+.menu__shine {
+  position: absolute;
+  z-index: -1;
+  inset: 2px 3px 54% 3px;
+  border-radius: 16px 16px 45% 45%;
+  background: linear-gradient(180deg, rgb(255 255 255 / 37%), rgb(255 255 255 / 1%));
+  pointer-events: none;
+}
+
+.menu__icon {
+  display: inline-grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  border: 1.5px solid rgb(255 255 255 / 72%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 12%);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.menu__button--primary .menu__icon { width: 29px; height: 29px; flex-basis: 29px; font-size: 14px; }
+
+.menu__button:hover {
+  filter: brightness(1.08) saturate(1.05);
+  transform: translateY(-2px);
+}
+
+.menu__button--primary:hover { box-shadow: 0 7px 0 #b95d20, 0 14px 28px rgb(5 28 46 / 35%), inset 0 2px 0 rgb(255 255 255 / 82%), inset 0 -3px 0 rgb(199 89 25 / 24%); }
+.menu__button--secondary:hover { box-shadow: 0 7px 0 #1b547d, 0 13px 25px rgb(5 27 46 / 32%), inset 0 2px 0 rgb(255 255 255 / 55%), inset 0 -3px 0 rgb(11 57 100 / 28%); }
+
+.menu__button:active {
+  filter: brightness(.98);
+  transform: translateY(3px) scale(.99);
+  box-shadow: 0 2px 0 #1b547d, 0 5px 12px rgb(5 27 46 / 25%), inset 0 2px 0 rgb(255 255 255 / 38%);
+}
+
+.menu__button--primary:active { box-shadow: 0 2px 0 #b95d20, 0 5px 12px rgb(5 28 46 / 25%), inset 0 2px 0 rgb(255 255 255 / 65%); }
+
+.menu__button:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 5px;
+}
+
+.connection {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 25px;
+  color: rgb(246 251 255 / 90%);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: .035em;
+  text-shadow: 0 1px 5px rgb(7 29 46 / 78%);
+}
+
+.connection__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ffd05b;
+  box-shadow: 0 0 10px rgb(255 208 91 / 75%);
+}
+
+.connection__dot--online { background: #72f0b0; box-shadow: 0 0 10px rgb(114 240 176 / 85%); }
+
+.player-greeting {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -2px 0 17px;
+  color: #fff;
+  font-size: clamp(20px, 4vw, 27px);
+  font-weight: 900;
+  letter-spacing: .025em;
+  text-align: center;
+  text-shadow: none;
+}
+
+.player-greeting > span {
+  background: linear-gradient(100deg, #fff36f 0%, #fff 40%, #59dcff 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-size: clamp(23px, 4.5vw, 32px);
+  font-weight: 1000;
+  letter-spacing: .035em;
+  filter: drop-shadow(0 2px 0 rgb(11 42 63 / 70%)) drop-shadow(0 5px 14px rgb(2 22 39 / 68%));
+}
+
+.player-greeting__edit {
+  display: grid;
+  width: 29px;
+  height: 29px;
+  flex: 0 0 29px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  opacity: .88;
+  text-shadow: inherit;
+  transition: background 140ms ease, opacity 140ms ease, transform 140ms ease;
+}
+
+.player-greeting__edit:hover { background: rgb(255 255 255 / 17%); opacity: 1; transform: translateY(-1px); }
+.player-greeting__edit:active { transform: translateY(1px); }
+.player-greeting__edit:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.player-greeting__edit svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 2.2; filter: drop-shadow(0 2px 2px rgb(2 22 39 / 62%)); }
+
+.name-modal-backdrop {
+  position: fixed;
+  z-index: 5;
+  inset: 0;
+  display: grid;
+  overflow-y: auto;
+  place-items: center;
+  padding: 22px;
+  background: rgb(5 23 39 / 54%);
+  backdrop-filter: blur(5px);
+}
+
+.name-modal {
+  position: relative;
+  width: min(100%, 460px);
+  padding: clamp(30px, 6vw, 48px);
+  border-radius: 30px;
+  color: #fff;
+  text-align: center;
+  text-shadow: 0 2px 2px rgb(122 57 22 / 32%);
+  animation: panel-appear 200ms ease-out both;
+}
+
+.name-modal::before {
+  position: absolute;
+  inset: 5px 5px auto;
+  height: 39%;
+  border-radius: 23px 23px 50% 50%;
+  background: linear-gradient(180deg, rgb(255 255 255 / 35%), transparent);
+  content: '';
+  pointer-events: none;
+}
+
+.name-modal > * { position: relative; }
+.name-modal__badge { display: grid; width: 50px; height: 50px; place-items: center; margin: 0 auto 12px; border: 2px solid rgb(255 255 255 / 76%); border-radius: 17px; background: rgb(255 255 255 / 20%); box-shadow: inset 0 2px 0 rgb(255 255 255 / 43%); font-size: 25px; }
+.name-modal__eyebrow { color: #fffdf1; font-size: 11px; font-weight: 900; letter-spacing: .19em; }
+.name-modal h1 { margin: 7px 0 7px; font-size: clamp(26px, 6vw, 34px); font-weight: 900; line-height: 1.1; }
+.name-modal > p { margin: 0 auto 24px; color: rgb(255 255 255 / 94%); font-size: 14px; font-weight: 800; }
+
+.name-form { display: grid; gap: 9px; text-align: left; }
+.name-form__label { margin-left: 3px; color: #f4fbff; font-size: 13px; font-weight: 900; }
+.name-form__input { width: 100%; min-height: 53px; padding: 0 16px; border: 2px solid rgb(255 255 255 / 86%); border-radius: 15px; outline: none; background: rgb(255 255 255 / 94%); box-shadow: 0 4px 0 rgb(177 85 29 / 27%), inset 0 2px 4px rgb(45 74 92 / 8%); color: #23516b; font: inherit; font-size: 16px; font-weight: 800; text-shadow: none; }
+.name-form__input::placeholder { color: #7795a5; font-weight: 700; }
+.name-form__input:focus { border-color: #fff; box-shadow: 0 0 0 4px rgb(255 255 255 / 28%), 0 4px 0 rgb(177 85 29 / 27%); }
+.name-form__submit { width: 100%; margin-top: 9px; }
+.name-form__submit:disabled { cursor: not-allowed; filter: saturate(.55); opacity: .76; transform: none; }
+
+.landing__version {
+  position: absolute;
+  right: 20px;
+  bottom: 16px;
+  color: rgb(242 250 255 / 67%);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .17em;
+  text-shadow: 0 1px 5px rgb(7 29 46 / 80%);
+}
+
+/* The play page presents the server's one shared, fixed-size world. */
+.game-screen {
+  display: flex;
+  min-height: 100svh;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: max(14px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 0%, #a9e6ff 0%, #4e9fcb 48%, #194c70 100%);
+}
+
+/* Scale all flight HUD panels from the measured game viewport width together. */
+.game-toolbar__back,
+.game-toolbar__settings,
+.flight-hud,
+.speed-board,
+.weapon-board,
+.ranking-board,
+.mini-map,
+.mobile-flight-controls { zoom: var(--viewport-ui-scale, 1); }
+
+.game-toolbar {
+  display: grid;
+  width: min(100%, 1180px);
+  min-height: 58px;
+  flex: 0 0 auto;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+}
+
+.game-toolbar__back {
+  display: inline-flex;
+  width: 48px;
+  height: 48px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border: 1px solid #fff0b3;
+  border-radius: 14px;
+  box-shadow: 0 3px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 75%);
+  color: #fffef7;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 900;
+  text-shadow: 0 2px 2px rgb(143 70 20 / 43%);
+}
+
+.game-toolbar__back:hover { filter: brightness(1.08); transform: none; }
+.game-toolbar__back:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.game-toolbar__back span { font-size: 20px; line-height: 1; }
+.game-toolbar__title { color: #fff; font-size: 15px; font-weight: 900; letter-spacing: .13em; text-align: center; text-shadow: 0 2px 5px rgb(8 35 55 / 42%); }
+.game-toolbar__title span { display: block; margin-top: 2px; color: #d8f4ff; font-size: 9px; letter-spacing: .2em; }
+.game-toolbar__settings { justify-self: end; }
+
+.game-viewport {
+  position: relative;
+  width: min(100%, 1180px);
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  border: 4px solid rgb(235 250 255 / 88%);
+  border-radius: 24px;
+  background: #387c32;
+  box-shadow: 0 7px 0 rgb(14 58 82 / 55%), 0 20px 44px rgb(5 30 49 / 32%), inset 0 0 0 2px rgb(19 73 43 / 45%);
+}
+
+.game-world {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  overflow: visible;
+  transform-origin: center;
+  background: transparent;
+  box-shadow: 0 0 0 3px rgb(30 76 38 / 40%);
+}
+
+.game-world::before { display: none; }
+.game-world::after { position: absolute; z-index: 1; inset: 0; box-sizing: border-box; border: 8px solid #ef3844; box-shadow: inset 0 0 0 2px rgb(255 255 255 / 42%), 0 0 12px rgb(239 56 68 / 55%); content: ''; pointer-events: none; }
+.map-object { position: absolute; transform: translate(-50%, -50%); pointer-events: none; }
+.map-sprite { background-image: url('/assets/things 2.png'); background-repeat: no-repeat; background-size: 500% 500%; background-position: var(--sprite-column) var(--sprite-row); }
+.map-player { position: absolute; z-index: 2; display: grid; width: 74px; height: 74px; place-items: center; border: 3px solid rgb(255 255 255 / 93%); border-radius: 50%; background: linear-gradient(145deg, #fff5bd, #ff9d37); box-shadow: none; transform: translate(-50%, -50%); }
+.map-player span { color: #fff; font-size: 36px; line-height: 1; filter: none; }
+
+.map-tree { z-index: 1; }
+.map-tree-image { z-index: 1; display: block; object-fit: contain; }
+.map-tree__trunk { position: absolute; left: 41%; bottom: 2%; width: 18%; height: 40%; border: 2px solid #714222; border-radius: 8px 8px 12px 12px; background: linear-gradient(90deg, #8f5930, #d19a57 48%, #754322); box-shadow: 0 3px 3px rgb(25 45 17 / 28%); }
+.map-tree__crown { position: absolute; display: block; border: 3px solid #31733b; border-radius: 48% 52% 43% 57%; background: radial-gradient(circle at 35% 27%, #95d65e 0 12%, transparent 13%), radial-gradient(circle at 65% 60%, #3c9848 0 25%, transparent 26%), linear-gradient(140deg, #78c956, #2f873f 70%, #216638); box-shadow: inset 0 4px 0 rgb(220 255 145 / 43%), 0 5px 7px rgb(20 55 22 / 42%); }
+.map-tree__crown--back { inset: 1% 7% 26%; transform: rotate(-8deg); }
+.map-tree__crown--front { inset: 20% 0 5%; border-radius: 54% 46% 53% 47%; background: radial-gradient(circle at 38% 30%, #a3dd66 0 10%, transparent 11%), linear-gradient(145deg, #64b94f, #328841 75%, #236b39); }
+
+.game-loading { display: grid; width: 100%; height: 100%; place-items: center; color: #fff; font-size: 18px; font-weight: 900; text-shadow: 0 2px 5px rgb(8 35 55 / 50%); }
+.game-caption { display: flex; min-height: 20px; flex: 0 0 auto; align-items: center; gap: 9px; color: #f2fbff; font-size: 12px; font-weight: 900; letter-spacing: .04em; text-shadow: 0 2px 5px rgb(8 35 55 / 60%); }
+.game-caption > span:nth-child(2) { color: #b9eaff; }
+.game-caption__dot { width: 8px; height: 8px; border-radius: 50%; background: #7df0ae; box-shadow: 0 0 9px #7df0ae; }
+
+.settings-panel__back.menu__button--primary { min-height: 40px; border: 1px solid #fff0b3; border-radius: 13px; padding: 7px 14px; box-shadow: 0 3px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 70%); color: #fffef7; font-size: 14px; text-shadow: 0 2px 2px rgb(143 70 20 / 43%); }
+.settings-panel__back.menu__button--primary:hover { background: linear-gradient(180deg, #fff19c, #ffbd45 48%, #f58a27); }
+.settings-panel__back.menu__button--primary:active { transform: translateY(2px); box-shadow: 0 1px 0 #b95d20; }
+.settings-panel__back:focus-visible, .key-button:focus-visible { outline: 3px solid #fff2a8; outline-offset: 3px; }
+.key-button { border-color: #fff0b3; background: linear-gradient(180deg, #ffe985 0%, #ffbd45 48%, #f58a27 100%); box-shadow: 0 3px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 76%); }
+.key-button:hover { filter: brightness(1.08); }
+.key-button:active { box-shadow: 0 1px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 55%); }
+.key-button--listening { border-color: #fff0b3; background: linear-gradient(180deg, #ffe985 0%, #ffbd45 48%, #f58a27 100%); box-shadow: 0 3px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 76%); color: #fff; }
+
+@media (max-width: 560px) {
+  .game-screen { gap: 8px; padding-inline: 10px; }
+  .game-toolbar { min-height: 50px; gap: 8px; }
+  .game-toolbar__title { font-size: 12px; letter-spacing: .08em; }
+  .game-toolbar__back { width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 12px; }
+  .game-toolbar__settings { width: 40px; height: 40px; }
+  .game-viewport { border-width: 3px; border-radius: 17px; }
+  .game-caption { font-size: 11px; }
+}
+
+@media (max-width: 520px) {
+  .landing { background-position: 54% center; }
+  .top-actions { top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); gap: 8px; }
+  .top-actions__button { width: 43px; height: 43px; border-radius: 14px; }
+  .landing__content { width: min(100% - 42px, 390px); padding-top: 30px; padding-bottom: 42px; transform: translateY(-1vh); }
+  .landing__logo { width: min(100%, 410px); margin-bottom: 18px; }
+  .menu { width: min(100%, 310px); gap: 12px; }
+  .menu__button { min-height: 58px; border-radius: 18px; font-size: 19px; }
+  .menu__button--primary { min-height: 66px; font-size: 22px; }
+  .settings-panel { padding: 22px 19px; border-radius: 25px; }
+  .settings-panel__heading { margin: 18px 0 20px; }
+  .control-row { min-height: 51px; }
+  .name-modal { padding: 28px 22px; border-radius: 25px; }
+}
+
+@media (max-height: 620px) and (min-width: 521px) {
+  .landing__content { padding-block: 18px 34px; transform: none; }
+  .landing__logo { width: min(62vh, 420px); margin-bottom: 10px; }
+  .menu { width: min(44vw, 300px); gap: 9px; }
+  .menu__button { min-height: 49px; font-size: 18px; }
+  .menu__button--primary { min-height: 56px; font-size: 21px; }
+  .connection { margin-top: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* Full-screen flight view with a compact status HUD and a framed world overview. */
+.game-screen {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100vw;
+  height: 100svh;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #397537;
+}
+
+.game-viewport { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; border: 0; border-radius: 0; background: #397537; box-shadow: none; }
+.game-world { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.game-toolbar { position: absolute; z-index: 3; inset: 0; display: block; width: auto; min-height: 0; pointer-events: none; }
+.game-toolbar__back { position: absolute; top: max(18px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); left: auto; pointer-events: auto; }
+.game-toolbar__settings { position: absolute; top: max(18px, env(safe-area-inset-top)); right: calc(max(20px, env(safe-area-inset-right)) + 112px); pointer-events: auto; }
+
+.flight-hud {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: 50%;
+  display: grid;
+  width: min(300px, calc(100vw - 170px));
+  gap: 7px;
+  padding: 10px 14px 11px;
+  border: 1.5px solid rgb(227 247 255 / 77%);
+  border-radius: 19px;
+  background: linear-gradient(160deg, rgb(28 72 99 / 87%), rgb(9 40 64 / 88%));
+  box-shadow: 0 5px 0 rgb(6 31 49 / 45%), 0 12px 25px rgb(5 28 44 / 35%), inset 0 1px 0 rgb(255 255 255 / 22%);
+  color: white;
+  transform: translateX(-50%);
+  backdrop-filter: blur(8px);
+}
+
+.flight-hud__plane-level { display: flex; align-items: baseline; justify-content: center; gap: 7px; color: #bcecff; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.flight-hud__plane-level strong { color: #fff7c0; font-size: 16px; letter-spacing: .08em; text-shadow: 0 2px 4px rgb(0 0 0 / 45%); }
+.flight-hud__meter { display: grid; gap: 4px; }
+.flight-hud__meter-label { display: flex; align-items: center; justify-content: space-between; color: #fff; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-shadow: 0 1px 3px rgb(0 0 0 / 55%); }
+.flight-hud__meter-label strong { color: #f7fcff; font-size: 10px; letter-spacing: .06em; }
+.flight-hud__track { height: 9px; overflow: hidden; border: 1px solid rgb(255 255 255 / 73%); border-radius: 99px; background: rgb(8 27 40 / 72%); box-shadow: inset 0 2px 3px rgb(0 0 0 / 35%); }
+.flight-hud__track > span { display: block; height: 100%; border-radius: inherit; }
+.flight-hud__health { width: 100%; background: linear-gradient(90deg, #44e58c, #b6ff80); box-shadow: 0 0 10px rgb(113 255 148 / 68%); }
+.flight-hud__progress { width: 42%; background: linear-gradient(90deg, #48c8ff, #c0f5ff); box-shadow: 0 0 9px rgb(94 217 255 / 60%); }
+.flight-hud__meter--progress .flight-hud__track { height: 6px; }
+
+.map-player {
+  position: absolute;
+  z-index: 2;
+  width: 120px;
+  height: 150px;
+  border: 0;
+  border-radius: 0;
+  background: url('/assets/things 1.png') no-repeat -78px -85px;
+  box-shadow: none;
+  transform: translate(-50%, -50%);
+}
+.map-player span { display: none; }
+
+.mini-map {
+  position: absolute;
+  z-index: 4;
+  right: max(22px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: min(260px, 30vw);
+  aspect-ratio: 1;
+  padding: 8px;
+  border: 1.5px solid rgb(227 247 255 / 77%);
+  border-radius: 19px;
+  background: linear-gradient(145deg, #80cbe7, #27618a 58%, #133d5f);
+  box-shadow: 0 5px 0 #123b58, 0 12px 28px rgb(0 20 35 / 47%), inset 0 1px 0 rgb(255 255 255 / 74%);
+}
+.mini-map__label { position: absolute; z-index: 2; top: 11px; left: 14px; padding: 3px 6px; border-radius: 5px; background: rgb(9 42 53 / 62%); color: #f5fcff; font-size: 9px; font-weight: 900; letter-spacing: .2em; text-shadow: 0 1px 3px rgb(5 35 52 / 70%); }
+.mini-map__surface {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border: 2px solid rgb(227 247 255 / 77%);
+  border-radius: 11px;
+  background-color: #467d35;
+  background-image: radial-gradient(ellipse at 30% 25%, rgb(167 214 91 / 16%), transparent 38%), radial-gradient(ellipse at 75% 80%, rgb(18 87 49 / 18%), transparent 44%), linear-gradient(145deg, #5b9440, #3f7c38);
+  box-shadow: inset 0 0 0 2px rgb(20 65 38 / 40%);
+}
+.mini-map__dot { position: absolute; z-index: 1; width: 4px; height: 4px; border: 1px solid rgb(255 255 255 / 88%); border-radius: 50%; transform: translate(-50%, -50%); }
+.mini-map__dot--mountain { background: #e5f3f5; }
+.mini-map__dot--pool { background: #16ceff; box-shadow: 0 0 4px #7ce8ff; }
+.mini-map__dot--rock { background: #9aa2a1; }
+.mini-map__dot--flower { background: #ff70c1; }
+.mini-map__player { position: absolute; z-index: 3; left: 50%; top: 50%; width: 9px; height: 9px; border: 2px solid white; border-radius: 50%; background: #ffac35; box-shadow: 0 0 0 3px rgb(255 172 53 / 30%), 0 0 8px #fff; transform: translate(-50%, -50%); }
+.mini-map__view { position: absolute; z-index: 2; left: 50%; top: 50%; width: 16%; height: 16%; border: 1px solid rgb(255 255 255 / 83%); border-radius: 3px; box-shadow: 0 0 0 1px rgb(16 64 83 / 45%); transform: translate(-50%, -50%); }
+.mini-map__other-player { position: absolute; z-index: 2; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: #ed5b77; box-shadow: 0 0 5px #ff8395; transform: translate(-50%, -50%); }
+
+/* The supplied ground tile is the foliage source; keep these canopy patches small. */
+.map-tree { z-index: 1; border: 1px solid rgb(83 126 45 / 35%); border-radius: 46% 54% 48% 52%; background-image: url('/assets/ground pattern.png'); background-size: 760px 760px; background-position: var(--tree-x) var(--tree-y); box-shadow: 0 2px 5px rgb(19 47 22 / 40%); filter: drop-shadow(0 2px 2px rgb(16 42 20 / 30%)); }
+.map-cloud { z-index: 1; opacity: 0; animation-name: map-cloud-drift, map-cloud-life; animation-timing-function: ease-in-out, ease-in-out; animation-iteration-count: infinite, infinite; animation-direction: alternate, normal; pointer-events: none; }
+@keyframes map-cloud-drift { from { translate: -15px 5px; } to { translate: 18px -7px; } }
+@keyframes map-cloud-life { 0%, 7% { opacity: 0; } 18%, 72% { opacity: .62; } 88%, 100% { opacity: 0; } }
+
+.aircraft-entity { position: absolute; z-index: 2; transform: translate3d(-50%, -50%, 0); will-change: transform; }
+.aircraft-entity--self { z-index: 3; }
+.aircraft-entity--spawn-protected .map-player { animation: spawn-protection-pulse 650ms ease-in-out infinite alternate; }
+@keyframes spawn-protection-pulse { from { opacity: .8; } to { opacity: 1; } }
+.aircraft-entity .map-player { display: block; position: relative; z-index: 1; border: 0; border-radius: 0; background-repeat: no-repeat; box-shadow: none; will-change: transform; }
+.aircraft-target-lock { position: absolute; z-index: 4; top: 50%; left: 50%; background: linear-gradient(#ff3b46, #ff3b46) left top / 14px 6px no-repeat, linear-gradient(#ff3b46, #ff3b46) left top / 6px 14px no-repeat, linear-gradient(#ff3b46, #ff3b46) right top / 14px 6px no-repeat, linear-gradient(#ff3b46, #ff3b46) right top / 6px 14px no-repeat, linear-gradient(#ff3b46, #ff3b46) left bottom / 14px 6px no-repeat, linear-gradient(#ff3b46, #ff3b46) left bottom / 6px 14px no-repeat, linear-gradient(#ff3b46, #ff3b46) right bottom / 14px 6px no-repeat, linear-gradient(#ff3b46, #ff3b46) right bottom / 6px 14px no-repeat; filter: drop-shadow(0 0 3px rgb(255 45 55 / 85%)); transform: translate(-50%, -50%); pointer-events: none; }
+.aircraft-tag { position: absolute; z-index: 2; left: 50%; bottom: calc(100% - 4px); display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; color: #fff; transform: translateX(-50%); white-space: nowrap; }
+.aircraft-tag strong { display: flex; max-width: 180px; align-items: center; gap: 5px; overflow: hidden; color: #fff; font-size: 11px; font-weight: 900; letter-spacing: .02em; text-overflow: ellipsis; text-shadow: 0 1px 3px rgb(0 0 0 / 70%); }
+.aircraft-tag__level { flex: 0 0 auto; padding: 1px 4px; border: 1px solid rgb(255 255 255 / 48%); border-radius: 5px; background: rgb(14 48 65 / 78%); color: #ffe58e; font-size: 8px; letter-spacing: .08em; }
+.aircraft-tag strong > span:last-child { overflow: hidden; text-overflow: ellipsis; }
+.aircraft-tag__hp { display: block; width: 74px; height: 5px; overflow: hidden; border: 0; border-radius: 5px; background: rgb(19 31 36 / 65%); box-shadow: none; }
+.aircraft-tag__hp i { display: block; height: 100%; border-radius: inherit; box-shadow: 0 0 5px currentColor; transition: width 120ms linear, background-color 180ms ease; }
+.world-rocket { position: absolute; z-index: 3; width: 30px; height: 34px; background-repeat: no-repeat; background-position: center; background-size: 100% 100%; }
+.world-rocket--bot { width: 24px; height: 27px; }
+.world-rocket--bot::before { width: 10px; height: 34px; }
+.world-rocket--bot::after { width: 6px; height: 16px; }
+.world-rocket--mine { width: 21px; height: 24px; }
+.world-rocket--mine::before { width: 8px; height: 29px; }
+.world-rocket--mine::after { width: 5px; height: 14px; }
+.world-rocket::before { position: absolute; top: 78%; left: 50%; width: 12px; height: 42px; border-radius: 50%; background: linear-gradient(180deg, rgb(112 121 125 / 48%), rgb(147 151 148 / 26%) 48%, transparent); filter: blur(4px); transform: translateX(-50%); content: ''; }
+.world-rocket::after { position: absolute; top: 94%; left: 50%; width: 7px; height: 20px; border-radius: 50%; background: linear-gradient(180deg, #fff5a1, #ff8d36 45%, transparent); filter: blur(1px); transform: translateX(-50%); content: ''; }
+.world-mine { position: absolute; z-index: 2; width: 32px; height: 32px; border-radius: 50%; background-repeat: no-repeat; background-position: center; background-size: 100% 100%; transform: translate(-50%, -50%); }
+.world-weapon-enemy-marker { position: absolute; z-index: 5; top: 50%; left: 50%; width: 42px; height: 42px; box-sizing: border-box; border: 2px solid rgb(255 48 62 / 92%); border-radius: 50%; box-shadow: 0 0 0 1px rgb(255 48 62 / 35%), 0 0 9px rgb(255 34 48 / 72%); transform: translate(-50%, -50%); pointer-events: none; animation: enemy-weapon-marker-pulse .8s ease-in-out infinite alternate; }
+@keyframes enemy-weapon-marker-pulse { from { opacity: .62; } to { opacity: 1; } }.world-mine--armed { animation: mine-pulse .55s ease-in-out infinite alternate; }
+@keyframes mine-pulse { to { filter: brightness(1.7); } }
+.ranking-board { position: absolute; z-index: 5; top: max(16px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); right: auto; width: min(286px, 38vw); max-height: min(44vh, 340px); overflow: hidden auto; padding: 10px 12px; border: 1px solid rgb(215 242 255 / 55%); border-radius: 14px; background: rgb(11 43 62 / 86%); box-shadow: 0 7px 20px rgb(3 22 35 / 35%), inset 0 1px 0 rgb(255 255 255 / 18%); color: white; backdrop-filter: blur(7px); }
+.ranking-board__title { display: block; margin: 0 0 6px; color: #ffe58e; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.ranking-board__row { display: grid; grid-template-columns: 17px minmax(0, 1fr) 42px 27px 32px 42px; align-items: center; gap: 5px; min-height: 25px; border-top: 1px solid rgb(255 255 255 / 12%); font-size: 10px; }
+.ranking-board__row > b { color: #bce9ff; font-size: 9px; }
+.ranking-board__name { display: flex; min-width: 0; align-items: center; gap: 4px; overflow: hidden; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-board__name small { padding: 1px 3px; border-radius: 4px; background: #ffdc7840; color: #ffdf83; font-size: 7px; }
+.ranking-board__team { min-width: 0; overflow: hidden; color: #8ec6de; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-board__level { color: #b7dbea; font-size: 9px; }
+.ranking-board__kills { color: #ffd18a; font-size: 9px; }
+.ranking-board__row > strong { color: #8cf0bd; text-align: right; }
+.ranking-board__row--self { color: #fff0b0; }
+.ranking-board__row--self .ranking-board__name::after { color: #ffdd79; content: 'YOU'; font-size: 7px; }
+.game-settings-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgb(5 23 39 / 64%); backdrop-filter: blur(7px); }
+.game-settings-backdrop .settings-panel { z-index: 1; max-height: min(770px, calc(100svh - 40px)); }
+.aircraft-entity .map-player::before { position: absolute; z-index: -1; inset: 0; border-radius: inherit; background-image: var(--aircraft-image); background-position: center; background-size: 100% 100%; content: ''; opacity: .1; filter: grayscale(1); transform: translate(8px, 12px); pointer-events: none; }
+.world-blast { z-index: 4; pointer-events: none; }
+.danger-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; transition: opacity 140ms linear; }
+
+.speed-board {
+  position: absolute;
+  z-index: 4;
+  left: max(22px, env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: min(220px, 28vw);
+  padding: 13px 15px 11px;
+  border: 1.5px solid rgb(225 246 255 / 80%);
+  border-radius: 19px;
+  background: linear-gradient(150deg, rgb(22 63 87 / 90%), rgb(9 35 56 / 91%));
+  box-shadow: 0 5px 0 rgb(7 31 48 / 55%), 0 12px 26px rgb(4 22 36 / 45%), inset 0 1px 0 rgb(255 255 255 / 25%);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+.speed-board__top { display: flex; align-items: baseline; justify-content: space-between; }
+.speed-board__top > span { color: #b8edff; font-size: 10px; font-weight: 900; letter-spacing: .19em; }
+.speed-board__top strong { color: #fff8c8; font-size: 23px; font-weight: 1000; line-height: 1; text-shadow: 0 2px 4px rgb(0 0 0 / 45%); }
+.speed-board__top small { font-size: 9px; letter-spacing: .05em; }
+.speed-board__track { height: 8px; margin-top: 10px; overflow: hidden; border: 1px solid rgb(255 255 255 / 76%); border-radius: 20px; background: rgb(4 24 39 / 85%); }
+.speed-board__track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #43c8ff, #69f2a5 48%, #ffe474); box-shadow: 0 0 9px rgb(103 236 189 / 70%); }
+.speed-board__range { display: flex; justify-content: space-between; margin-top: 3px; color: #c6eaf8; font-size: 9px; font-weight: 900; }
+.speed-board__controls { display: flex; align-items: center; justify-content: space-between; gap: 4px; margin-top: 7px; color: #d9f3ff; font-size: 8px; font-weight: 800; white-space: nowrap; }
+.speed-board__controls span { display: inline-flex; align-items: center; gap: 2px; }
+.speed-board__controls i { color: #83cfe8; font-style: normal; }
+.speed-board kbd { min-width: 19px; padding: 2px 4px; border: 1px solid rgb(255 255 255 / 55%); border-radius: 5px; background: rgb(255 255 255 / 12%); color: #fff; font: inherit; text-align: center; }
+.speed-board__controls kbd { min-width: 14px; padding: 1px 2px; font-size: 8px; }
+
+.weapon-board { position: absolute; z-index: 4; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; display: flex; align-items: center; gap: 14px; padding: 11px 16px; border: 1.5px solid rgb(227 247 255 / 80%); border-radius: 17px; background: linear-gradient(145deg, rgb(26 67 91 / 91%), rgb(10 39 61 / 93%)); box-shadow: 0 4px 0 rgb(6 31 48 / 50%), 0 10px 24px rgb(5 26 43 / 42%), inset 0 1px 0 rgb(255 255 255 / 22%); color: white; transform: translateX(-50%); backdrop-filter: blur(8px); }
+.weapon-board__item { display: flex; align-items: center; gap: 8px; min-width: 112px; }
+.weapon-board__icon { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid rgb(255 255 255 / 64%); border-radius: 10px; background: rgb(255 255 255 / 12%); font-size: 20px; }
+.weapon-board__icon--rocket { color: #ffbe67; }
+.weapon-board__icon--mine { color: #a9dcff; }
+.weapon-board__copy { display: grid; gap: 3px; }
+.weapon-board__copy strong { color: #f4fbff; font-size: 9px; font-weight: 900; letter-spacing: .08em; white-space: nowrap; }
+.weapon-board__action-heading { display: flex; align-items: center; gap: 4px; }
+.weapon-board__action-heading kbd { min-width: 17px; padding: 1px 4px; border: 1px solid rgb(255 255 255 / 45%); border-radius: 4px; background: rgb(255 255 255 / 12%); color: #fff; font-size: 8px; font-weight: 900; line-height: 1.2; text-align: center; }
+.weapon-board__copy small { display: flex; align-items: center; gap: 4px; color: #bfe9fb; font-size: 9px; font-weight: 900; letter-spacing: .04em; white-space: nowrap; }
+.weapon-board__copy small kbd { min-width: 16px; padding: 1px 3px; border: 1px solid rgb(255 255 255 / 42%); border-radius: 4px; background: rgb(255 255 255 / 12%); color: #fff; font-size: 8px; font-weight: 900; line-height: 1.2; text-align: center; }
+.weapon-board__divider { width: 1px; height: 33px; background: rgb(225 246 255 / 28%); }
+.weapon-board__ammo { position: relative; isolation: isolate; display: flex; width: 78px; height: 42px; flex: 0 0 78px; align-items: center; justify-content: center; gap: 2px; overflow: hidden; padding: 0; border: 0; clip-path: polygon(15% 0, 85% 0, 100% 50%, 85% 100%, 15% 100%, 0 50%); color: white; cursor: pointer; font: inherit; text-shadow: 0 2px 3px rgb(0 0 0 / 45%); }
+.weapon-board__ammo--rocket { background: linear-gradient(145deg, #e48434, #a43b32); }
+.weapon-board__ammo--mine { background: linear-gradient(145deg, #5eb4d0, #315d86); }
+.weapon-board__ammo--rocket.weapon-board__ammo--available { background: linear-gradient(145deg, #ffb34e, #e13d2e); box-shadow: 0 0 12px rgb(255 126 45 / 58%), inset 0 1px 0 rgb(255 255 255 / 32%); }
+.weapon-board__ammo--mine.weapon-board__ammo--available { background: linear-gradient(145deg, #7be6fa, #397de0); box-shadow: 0 0 12px rgb(82 194 255 / 58%), inset 0 1px 0 rgb(255 255 255 / 32%); }
+.weapon-board__ammo--fast { border: 0; background: linear-gradient(145deg, #edbe56, #a86531); cursor: pointer; font: inherit; }
+.weapon-board__ammo--fast:disabled { cursor: default; filter: grayscale(.55) brightness(.8); }
+.weapon-board__ammo--fast-active { background: linear-gradient(145deg, #6fdb86, #288353); box-shadow: 0 0 12px rgb(121 255 160 / 44%); }
+.weapon-board__ammo--fast > span { font-size: 20px; }
+.weapon-board__ammo--fast > b { max-width: 43px; overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.weapon-board__ammo--fast:disabled { cursor: default; filter: grayscale(.55) brightness(.8); }
+.weapon-board__ammo-pips { position: absolute; z-index: 3; bottom: 5px; left: 50%; display: flex; gap: 3px; transform: translateX(-50%); }
+.weapon-board__ammo--fast .weapon-board__ammo-pips { display: none; }
+.weapon-board__ammo--fast > .weapon-board__fast-line { right: 14%; bottom: 5px; left: 14%; display: block; height: 3px; transform-origin: left center; }
+.weapon-board__ammo-pips i { display: block; width: 4px; height: 4px; border-radius: 50%; background: rgb(255 255 255 / 32%); box-shadow: inset 0 0 0 1px rgb(4 30 47 / 55%); transition: background-color 150ms ease, box-shadow 150ms ease, transform 150ms ease; }
+.weapon-board__ammo-pips i.weapon-board__ammo-pip--filled { background: #baff8b; box-shadow: 0 0 5px rgb(186 255 139 / 80%); transform: scale(1.18); }
+.weapon-board__ammo:disabled:not(.weapon-board__ammo--fast) { cursor: default; filter: grayscale(.55) brightness(.8); }
+.weapon-board__ammo > span { font-size: 14px; opacity: .95; }
+.weapon-board__weapon-icon { display: block; width: 21px; height: 24px; flex: 0 0 21px; background-repeat: no-repeat; background-position: center; background-size: 100% 100%; }
+.weapon-board__ammo b { font-size: 18px; font-weight: 1000; line-height: 1; }
+.weapon-board__count--recharged { display: inline-block; animation: ammo-ready-bounce 620ms cubic-bezier(.2, 1.5, .4, 1) 1; }
+.weapon-board__ammo small { align-self: center; color: rgb(255 255 255 / 82%); font-size: 9px; font-weight: 900; }
+.weapon-board__ammo--charging::after { position: absolute; z-index: 2; inset: 0; border-radius: inherit; background: rgb(127 134 143 / 72%); backdrop-filter: grayscale(1); clip-path: inherit; content: ''; pointer-events: none; }
+.weapon-board__ammo--charging { filter: grayscale(.6) brightness(.72); }
+.weapon-board__ammo > i { position: absolute; z-index: 3; right: 14%; bottom: 5px; left: 14%; height: 3px; overflow: hidden; border-radius: 4px; background: linear-gradient(90deg, #a8f4ff, #fff3a3); box-shadow: 0 0 5px rgb(255 255 255 / 80%); transform-origin: left center; transition: transform 100ms linear; }
+.weapon-board__ammo--available { animation: ammo-ready-bounce 680ms cubic-bezier(.2, 1.5, .4, 1) 1; }
+.weapon-board__ammo--pressed { animation: weapon-press-bounce 420ms cubic-bezier(.2, 1.5, .4, 1) 1; }
+@keyframes ammo-ready-bounce { 0% { transform: scale(.78); filter: brightness(.8); } 42% { transform: scale(1.16); filter: brightness(1.28); } 72% { transform: scale(.96); } 100% { transform: scale(1); filter: brightness(1); } }
+@keyframes weapon-press-bounce { 0% { transform: scale(1); } 38% { transform: scale(1.18); } 70% { transform: scale(.94); } 100% { transform: scale(1); } }
+
+.game-loading { width: 100%; height: 100%; }
+
+@media (max-width: 560px) {
+  .game-toolbar__back { top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); left: auto; width: 40px; height: 40px; min-height: 40px; padding: 0; font-size: 12px; }
+  .game-toolbar__settings { top: max(12px, env(safe-area-inset-top)); right: calc(max(12px, env(safe-area-inset-right)) + 86px); width: 40px; }
+  .flight-hud { top: max(12px, env(safe-area-inset-top)); width: min(250px, calc(100vw - 174px)); gap: 5px; padding: 8px 10px; border-radius: 15px; }
+  .flight-hud__plane-level strong { font-size: 14px; }
+  .mini-map { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); width: min(180px, 39vw); padding: 6px; border-radius: 15px; }
+  .mini-map__label { top: 9px; left: 11px; font-size: 8px; }
+  .mini-map__surface { border-radius: 8px; }
+  .speed-board { left: max(12px, env(safe-area-inset-left)); bottom: max(12px, env(safe-area-inset-bottom)); width: min(150px, 39vw); padding: 10px 11px 8px; border-radius: 15px; }
+  .speed-board__top strong { font-size: 19px; }
+  .speed-board__controls { gap: 4px; font-size: 8px; }
+  .weapon-board { bottom: max(86px, calc(env(safe-area-inset-bottom) + 72px)); width: min(300px, calc(100vw - 24px)); flex-direction: row; align-items: center; justify-content: space-around; gap: 3px; padding: 6px; border-radius: 14px; }
+  .weapon-board__item { min-width: 0; flex-direction: column; align-items: center; gap: 2px; }
+  .weapon-board__ammo { width: 72px; height: 38px; flex-basis: 38px; }
+  .weapon-board__copy { justify-items: center; gap: 2px; }
+  .weapon-board__icon { width: 24px; height: 24px; border-radius: 8px; font-size: 16px; }
+  .weapon-board__copy strong { font-size: 8px; }
+  .weapon-board__copy small { font-size: 7px; }
+  .weapon-board__divider { display: none; }
+}
+
+@media (max-width: 620px) { .ranking-board { top: max(12px, env(safe-area-inset-top)); left: 9px; right: auto; width: min(240px, 70vw); max-height: 35vh; padding: 7px 8px; } .ranking-board__row { grid-template-columns: 14px minmax(0, 1fr) 34px 21px 25px 28px; gap: 3px; min-height: 22px; font-size: 9px; } .game-settings-backdrop { padding: 12px; } }
+
+.team-settings { display: grid; gap: 10px; margin-top: 14px; }
+.team-settings__code { display: grid; grid-template-columns: 1fr minmax(120px, 58%); align-items: center; gap: 10px; color: #f5fbff; font-size: 13px; font-weight: 900; }
+.team-settings__code input { width: 100%; min-height: 38px; padding: 7px 10px; border: 1px solid rgb(215 241 255 / 34%); border-radius: 10px; outline: 0; background: rgb(5 30 49 / 55%); color: #fff; font: inherit; }
+.team-settings__code input::placeholder { color: #a8c9d9; font-size: 11px; }
+.team-settings__code input:focus-visible { border-color: #9fe5ff; box-shadow: 0 0 0 2px rgb(112 211 255 / 24%); }
+.team-settings__toggle { display: flex; min-height: 42px; align-items: center; gap: 10px; padding: 7px 12px; border: 1px solid rgb(215 241 255 / 24%); border-radius: 12px; background: rgb(224 246 255 / 9%); color: #f5fbff; font-size: 13px; font-weight: 900; }
+.team-settings__toggle input { width: 18px; height: 18px; accent-color: #67eab1; }
+.team-settings > small { color: #bde8ff; font-size: 10px; font-weight: 700; text-align: center; }
+
+.respawn-timer { position: absolute; z-index: 7; top: 50%; left: 50%; display: grid; justify-items: center; gap: 8px; padding: 15px 24px; border: 1.5px solid rgb(255 112 112 / 88%); border-radius: 18px; background: rgb(65 15 25 / 86%); box-shadow: 0 0 22px rgb(255 56 70 / 36%); color: #fff; transform: translate(-50%, -50%); pointer-events: none; }
+.respawn-timer span { color: #ffc4c4; font-size: 10px; font-weight: 900; letter-spacing: .16em; }
+.respawn-timer strong { color: #fff; font-size: 34px; font-weight: 1000; line-height: 1; }
+.game-screen--mobile .speed-board { left: max(12px, env(safe-area-inset-left)); bottom: calc(max(12px, env(safe-area-inset-bottom)) + 146px); width: clamp(88px, 27vw, 120px); padding: 8px; }
+.game-screen--mobile .speed-board__top strong { font-size: 16px; }
+.game-screen--mobile .speed-board__controls { display: none; }
+.game-screen--mobile .mini-map { right: auto; bottom: max(12px, env(safe-area-inset-bottom)); left: 50%; width: clamp(78px, 24vmin, 108px); padding: 4px; border-radius: 12px; transform: translateX(-50%); }
+.game-screen--mobile .mini-map__label { top: 5px; left: 6px; font-size: 6px; letter-spacing: .12em; }
+.game-screen--mobile .mini-map__surface { border-radius: 7px; }
+.game-screen--mobile .weapon-board { right: max(12px, env(safe-area-inset-right)); bottom: max(12px, env(safe-area-inset-bottom)); left: auto; display: flex; width: auto; flex-direction: column; align-items: flex-end; gap: 7px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; transform: none; backdrop-filter: none; }
+.game-screen--mobile .weapon-board__item { min-width: 0; flex-direction: row-reverse; align-items: center; gap: 6px; }
+.game-screen--mobile .weapon-board__ammo { width: clamp(42px, 12vmin, 52px); height: clamp(42px, 12vmin, 52px); flex-basis: clamp(42px, 12vmin, 52px); border: 1px solid rgb(255 255 255 / 78%); border-radius: 50%; clip-path: none; box-shadow: 0 4px 10px rgb(5 25 40 / 42%), inset 0 1px 0 rgb(255 255 255 / 30%); }
+.game-screen--mobile .weapon-board__ammo--fast { border: 1px solid rgb(255 247 178 / 88%); }
+.game-screen--mobile .weapon-board__copy { width: 50px; justify-items: end; gap: 2px; text-align: right; }
+.game-screen--mobile .weapon-board__copy { display: none; }
+.game-screen--mobile .weapon-board__action-heading { justify-content: flex-end; gap: 2px; }
+.game-screen--mobile .weapon-board__action-heading strong { font-size: 6px; letter-spacing: .02em; }
+.game-screen--mobile .weapon-board__action-heading kbd { min-width: 14px; padding: 1px 2px; font-size: 7px; }
+.game-screen--mobile .weapon-board__item--fast .weapon-board__action-heading { display: none; }
+.game-screen--mobile .weapon-board__copy > small { display: none; }
+.game-screen--mobile .weapon-board__item--fast .weapon-board__copy > small { display: flex; font-size: 7px; }
+.game-screen--mobile .weapon-board__copy .weapon-board__action-heading { white-space: nowrap; }
+.game-screen--mobile .weapon-board__weapon-icon { width: 16px; height: 19px; flex-basis: 16px; }
+.game-screen--mobile .weapon-board__ammo b { font-size: 15px; }
+.game-screen--mobile .weapon-board__ammo small { font-size: 8px; }
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child { font-size: 17px; }
+.game-screen--mobile .weapon-board__ammo--fast > b { font-size: 9px; }
+.game-screen--mobile .weapon-board__ammo-pips { bottom: 6px; gap: 2px; }
+.game-screen--mobile .weapon-board__ammo--fast .weapon-board__ammo-pips { display: flex; }
+.game-screen--mobile .weapon-board__ammo--fast > .weapon-board__fast-line { display: none; }
+.game-screen--mobile .weapon-board__ammo-pips i { width: 3px; height: 3px; }
+.game-screen--mobile .weapon-board__ammo-pips { display: none !important; }
+.game-screen--mobile .weapon-board__ammo--rocket > i,
+.game-screen--mobile .weapon-board__ammo--mine > i,
+.game-screen--mobile .weapon-board__ammo--fast > .weapon-board__fast-line { display: none; }
+.game-screen--mobile .weapon-board__ammo--rocket::before,
+.game-screen--mobile .weapon-board__ammo--mine::before,
+.game-screen--mobile .weapon-board__ammo--fast::before { position: absolute; z-index: 1; inset: 3px; border-radius: 50%; background: conic-gradient(from -90deg, rgb(255 245 170 / 74%) 0 var(--ammo-progress, 0%), transparent var(--ammo-progress, 0%) 100%); content: ''; pointer-events: none; }
+.game-screen--mobile .weapon-board__ammo--rocket.weapon-board__ammo--charging { background: linear-gradient(145deg, #79532a, #572b31); filter: none; }
+.game-screen--mobile .weapon-board__ammo--mine.weapon-board__ammo--charging { background: linear-gradient(145deg, #315a70, #263c60); filter: none; }
+.game-screen--mobile .weapon-board__ammo--charging::after { display: none; }
+.game-screen--mobile .weapon-board__ammo--rocket > span,
+.game-screen--mobile .weapon-board__ammo--rocket > b,
+.game-screen--mobile .weapon-board__ammo--rocket > small,
+.game-screen--mobile .weapon-board__ammo--mine > span,
+.game-screen--mobile .weapon-board__ammo--mine > b,
+.game-screen--mobile .weapon-board__ammo--mine > small,
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child,
+.game-screen--mobile .weapon-board__ammo--fast > b,
+.game-screen--mobile .weapon-board__ammo--fast > small { position: relative; z-index: 2; }
+.game-screen--mobile .weapon-board__divider { display: none; }
+.mobile-flight-controls { position: absolute; z-index: 5; bottom: max(12px, env(safe-area-inset-bottom)); left: max(12px, env(safe-area-inset-left)); display: grid; justify-items: center; gap: 5px; width: clamp(112px, 34vw, 148px); color: #fff; pointer-events: none; }
+.mobile-flight-controls__label, .mobile-flight-controls__hint { color: rgb(239 250 255 / 90%); font-size: 9px; font-weight: 900; letter-spacing: .14em; text-shadow: 0 1px 4px rgb(0 20 35 / 85%); white-space: nowrap; }
+.mobile-flight-controls__label i { color: #8be4ff; font-style: normal; }
+.mobile-flight-controls__hint { font-size: 7px; letter-spacing: .1em; opacity: .8; }
+.mobile-flight-controls__stick { position: relative; width: 100%; aspect-ratio: 1; overflow: hidden; border: 1px solid rgb(221 245 255 / 65%); border-radius: 50%; background: radial-gradient(circle, rgb(177 226 245 / 15%) 0 34%, transparent 35%), radial-gradient(circle, rgb(9 39 59 / 75%) 0 62%, rgb(25 74 99 / 82%) 63% 100%); box-shadow: 0 5px 16px rgb(0 18 31 / 52%), inset 0 1px 0 rgb(255 255 255 / 28%); touch-action: none; pointer-events: auto; }
+.mobile-flight-controls__crosshair { position: absolute; inset: 19%; border: 1px dashed rgb(213 240 251 / 25%); border-radius: 50%; }
+.mobile-flight-controls__direction { position: absolute; z-index: 1; left: 50%; color: rgb(233 248 255 / 68%); font-size: 12px; font-weight: 900; line-height: 1; transform: translateX(-50%); pointer-events: none; }
+.mobile-flight-controls__direction--up { top: 9%; }
+.mobile-flight-controls__direction--down { bottom: 9%; }
+.mobile-flight-controls__direction--left { top: 50%; left: 9%; transform: translateY(-50%); }
+.mobile-flight-controls__direction--right { top: 50%; left: auto; right: 9%; transform: translateY(-50%); }
+.mobile-flight-controls__knob { position: absolute; top: 50%; left: 50%; width: 39%; aspect-ratio: 1; border: 1px solid rgb(255 255 255 / 83%); border-radius: 50%; background: linear-gradient(145deg, #b6edff, #398fba 72%); box-shadow: 0 3px 9px rgb(0 16 27 / 60%), inset 0 1px 0 rgb(255 255 255 / 70%); transform: translate(calc(-50% + var(--stick-x, 0px)), calc(-50% + var(--stick-y, 0px))); transition: transform 90ms ease-out; pointer-events: none; }
+
+/* Mobile HUD zones stay separate from the playable map and use a radial weapon cluster. */
+.game-screen--mobile .game-viewport { inset: 142px 6px 132px; width: auto; height: auto; border: 2px solid rgb(235 250 255 / 85%); border-radius: 14px; box-shadow: 0 5px 0 rgb(14 58 82 / 55%), 0 10px 22px rgb(5 30 49 / 34%); }
+.game-screen--mobile .flight-hud { top: max(58px, calc(env(safe-area-inset-top) + 50px)); right: max(10px, env(safe-area-inset-right)); left: auto; width: min(42vw, 190px); gap: 4px; padding: 6px 8px; border-radius: 12px; transform: none; }
+.game-screen--mobile .flight-hud__plane-level { gap: 4px; font-size: 8px; }
+.game-screen--mobile .flight-hud__plane-level strong { font-size: 12px; }
+.game-screen--mobile .flight-hud__meter-label { font-size: 7px; }
+.game-screen--mobile .flight-hud__meter-label strong { font-size: 8px; }
+.game-screen--mobile .flight-hud__track { height: 6px; }
+.game-screen--mobile .flight-hud__meter--progress { display: none; }
+.game-screen--mobile .ranking-board { top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left)); width: min(250px, 48vw); max-height: min(36vh, 190px); padding: 6px 7px; border-radius: 11px; }
+.game-screen--mobile .ranking-board__title { margin-bottom: 3px; font-size: 8px; }
+.game-screen--mobile .ranking-board__row { min-height: 18px; font-size: 8px; }
+.game-screen--mobile .speed-board { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 184px); width: min(112px, 30vw); padding: 7px; border-radius: 11px; }
+.game-screen--mobile .speed-board__top > span { font-size: 7px; }
+.game-screen--mobile .speed-board__top strong { font-size: 14px; }
+.game-screen--mobile .speed-board__top small { font-size: 7px; }
+.game-screen--mobile .speed-board__track { height: 5px; margin-top: 5px; }
+.game-screen--mobile .speed-board__range { font-size: 7px; }
+.game-screen--mobile .mini-map { right: auto; bottom: max(10px, env(safe-area-inset-bottom)); left: 50%; width: clamp(72px, 18vw, 82px); padding: 3px; border-radius: 9px; transform: translateX(-50%); }
+.game-screen--mobile .mini-map__label { top: 4px; left: 5px; font-size: 5px; }
+.game-screen--mobile .weapon-board { right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); left: auto; display: block; width: min(156px, 40vw); height: min(156px, 40vw); padding: 0; border: 0; border-radius: 50%; background: transparent; box-shadow: none; transform: none; backdrop-filter: none; }
+.game-screen--mobile .weapon-board::before { position: absolute; inset: 9%; border: 1px dashed rgb(225 246 255 / 38%); border-radius: 50%; content: ''; pointer-events: none; }
+.game-screen--mobile .weapon-board__item { position: absolute; display: block; width: auto; min-width: 0; margin: 0; }
+.game-screen--mobile .weapon-board__item:nth-child(1) { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.game-screen--mobile .weapon-board__item:nth-child(3) { top: 2%; right: 2%; }
+.game-screen--mobile .weapon-board__item--fast { bottom: 2%; left: 2%; }
+.game-screen--mobile .weapon-board__ammo { width: clamp(48px, 14vw, 58px); height: clamp(48px, 14vw, 58px); flex-basis: auto; border: 1px solid rgb(255 255 255 / 82%); border-radius: 50%; clip-path: none; }
+.game-screen--mobile .weapon-board__item:first-child .weapon-board__ammo { width: clamp(60px, 17vw, 72px); height: clamp(60px, 17vw, 72px); }
+.game-screen--mobile .weapon-board__copy,
+.game-screen--mobile .weapon-board__divider { display: none; }
+.game-screen--mobile .weapon-board__ammo--rocket > i,
+.game-screen--mobile .weapon-board__ammo--mine > i,
+.game-screen--mobile .weapon-board__ammo--fast > .weapon-board__fast-line { display: none; }
+.game-screen--mobile .weapon-board__ammo-pips { display: none !important; }
+.game-screen--mobile .weapon-board__ammo--rocket::before,
+.game-screen--mobile .weapon-board__ammo--mine::before,
+.game-screen--mobile .weapon-board__ammo--fast::before { position: absolute; z-index: 1; inset: 3px; border-radius: 50%; background: conic-gradient(from -90deg, rgb(255 245 170 / 74%) 0 var(--ammo-progress, 0%), transparent var(--ammo-progress, 0%) 100%); content: ''; pointer-events: none; }
+.game-screen--mobile .weapon-board__ammo--rocket.weapon-board__ammo--charging { background: linear-gradient(145deg, #79532a, #572b31); filter: none; }
+.game-screen--mobile .weapon-board__ammo--mine.weapon-board__ammo--charging { background: linear-gradient(145deg, #315a70, #263c60); filter: none; }
+.game-screen--mobile .weapon-board__ammo--charging::after { display: none; }
+.game-screen--mobile .weapon-board__ammo--rocket > span,
+.game-screen--mobile .weapon-board__ammo--rocket > b,
+.game-screen--mobile .weapon-board__ammo--rocket > small,
+.game-screen--mobile .weapon-board__ammo--mine > span,
+.game-screen--mobile .weapon-board__ammo--mine > b,
+.game-screen--mobile .weapon-board__ammo--mine > small,
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child,
+.game-screen--mobile .weapon-board__ammo--fast > b,
+.game-screen--mobile .weapon-board__ammo--fast > small { position: relative; z-index: 2; }
+.game-screen--mobile .mobile-flight-controls { width: clamp(112px, 30vw, 128px); }
+
+@media (max-height: 560px) {
+  .game-screen--mobile .game-viewport { inset-block: 116px 120px; }
+  .game-screen--mobile .ranking-board { max-height: 33vh; }
+  .game-screen--mobile .speed-board { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 158px); }
+  .game-screen--mobile .mobile-flight-controls { width: clamp(96px, 26vw, 116px); }
+}
+
+/* Keep the mobile playfield edge-to-edge with a shared top HUD row and a compact weapon cluster. */
+.game-screen--mobile .game-viewport { inset: 0; width: 100%; height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+.game-screen--mobile .flight-hud,
+.game-screen--mobile .ranking-board,
+.game-screen--mobile .game-toolbar__settings,
+.game-screen--mobile .game-toolbar__back { top: max(10px, env(safe-area-inset-top)); }
+.game-screen--mobile .flight-hud { right: auto; left: 50%; width: min(230px, 34vw); transform: translateX(-50%); }
+.game-screen--mobile .ranking-board { left: max(10px, env(safe-area-inset-left)); width: min(250px, 30vw); max-height: min(35vh, 190px); }
+.game-screen--mobile .ranking-board__row { grid-template-columns: 12px minmax(0, 1fr) 20px 18px 22px; gap: 3px; }
+.game-screen--mobile .ranking-board__team { display: none; }
+.game-screen--mobile .game-toolbar__back { right: max(10px, env(safe-area-inset-right)); width: 40px; height: 40px; min-height: 40px; border: 1.5px solid rgb(226 246 255 / 68%); border-radius: 16px; background: linear-gradient(180deg, #ffe985 0%, #ffbd45 48%, #f58a27 100%); box-shadow: 0 4px 0 #b95d20, 0 8px 18px rgb(5 27 46 / 30%), inset 0 2px 0 rgb(255 255 255 / 40%); transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease; }
+.game-screen--mobile .game-toolbar__settings { right: calc(max(10px, env(safe-area-inset-right)) + 48px); width: 40px; height: 40px; }
+.game-screen--mobile .game-toolbar__back:hover { filter: brightness(1.12); transform: translateY(-2px); }
+.game-screen--mobile .game-toolbar__back:active { transform: translateY(2px); box-shadow: 0 2px 0 #b95d20, 0 4px 10px rgb(5 27 46 / 25%); }
+.game-screen--mobile .weapon-board { right: max(10px, env(safe-area-inset-right)); bottom: max(10px, env(safe-area-inset-bottom)); width: min(176px, 46vw); height: min(176px, 46vw); }
+.game-screen--mobile .weapon-board::before { display: none; }
+.game-screen--mobile .weapon-board__item:nth-child(1) { top: auto; right: 2%; bottom: 2%; left: auto; transform: none; }
+.game-screen--mobile .weapon-board__item:nth-child(3) { top: auto; right: calc(2% + clamp(62px, 18vw, 76px) + 8px); bottom: 2%; left: auto; }
+.game-screen--mobile .weapon-board__item--fast { top: auto; right: 2%; bottom: calc(2% + clamp(62px, 18vw, 76px) + 8px); left: auto; }
+.game-screen--mobile .weapon-board__item:first-child .weapon-board__ammo { width: clamp(62px, 18vw, 76px); height: clamp(62px, 18vw, 76px); }
+.game-screen--mobile .weapon-board__item:nth-child(3) .weapon-board__ammo,
+.game-screen--mobile .weapon-board__item--fast .weapon-board__ammo { width: clamp(48px, 14vw, 58px); height: clamp(48px, 14vw, 58px); }
+/* Translucent HUD panels and larger, clearer mobile action controls. */
+.ranking-board { background: rgb(11 43 62 / 56%); }
+.flight-hud { background: linear-gradient(160deg, rgb(28 72 99 / 58%), rgb(9 40 64 / 62%)); }
+.speed-board { background: linear-gradient(150deg, rgb(22 63 87 / 60%), rgb(9 35 56 / 64%)); }
+
+.game-screen--mobile .weapon-board { width: min(250px, 64vw); height: min(250px, 64vw); }
+.game-screen--mobile .weapon-board__item:nth-child(1) .weapon-board__ammo { width: clamp(116px, 36vw, 144px); height: clamp(116px, 36vw, 144px); }
+.game-screen--mobile .weapon-board__item:nth-child(3) .weapon-board__ammo,
+.game-screen--mobile .weapon-board__item--fast .weapon-board__ammo { width: clamp(72px, 22vw, 86px); height: clamp(72px, 22vw, 86px); }
+.game-screen--mobile .weapon-board__item:nth-child(3) { right: calc(2% + clamp(116px, 36vw, 144px) + 8px); bottom: 2%; left: auto; top: auto; }
+.game-screen--mobile .weapon-board__item--fast { right: 2%; bottom: calc(2% + clamp(116px, 36vw, 144px) + 8px); left: auto; top: auto; }
+.game-screen--mobile .weapon-board__ammo { display: flex; overflow: hidden; border: 2px solid rgb(240 251 255 / 94%); box-shadow: 0 7px 17px rgb(1 18 31 / 48%), inset 0 2px 0 rgb(255 255 255 / 46%), inset 0 -5px 12px rgb(0 16 31 / 22%); transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease; }
+.game-screen--mobile .weapon-board__ammo:active { transform: scale(.95); filter: brightness(1.08); }
+.game-screen--mobile .weapon-board__ammo--rocket { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 40%), transparent 35%), linear-gradient(145deg, #ffb951, #ee6135 65%, #b8353a); }
+.game-screen--mobile .weapon-board__ammo--rocket.weapon-board__ammo--available { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 40%), transparent 35%), linear-gradient(145deg, #ffb951, #ee6135 65%, #b8353a); box-shadow: 0 0 19px rgb(255 111 50 / 58%), 0 7px 17px rgb(1 18 31 / 48%), inset 0 2px 0 rgb(255 255 255 / 46%), inset 0 -5px 12px rgb(0 16 31 / 22%); }
+.game-screen--mobile .weapon-board__ammo--mine { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 38%), transparent 35%), linear-gradient(145deg, #7be6fa, #397de0 72%, #2852a4); }
+.game-screen--mobile .weapon-board__ammo--mine.weapon-board__ammo--available { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 38%), transparent 35%), linear-gradient(145deg, #7be6fa, #397de0 72%, #2852a4); box-shadow: 0 0 15px rgb(82 194 255 / 48%), 0 7px 17px rgb(1 18 31 / 48%), inset 0 2px 0 rgb(255 255 255 / 46%), inset 0 -5px 12px rgb(0 16 31 / 22%); }
+.game-screen--mobile .weapon-board__ammo--fast { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 40%), transparent 35%), linear-gradient(145deg, #f9d875, #df9140 72%, #a85f32); }
+.game-screen--mobile .weapon-board__ammo--fast-active { background: radial-gradient(circle at 32% 22%, rgb(255 255 255 / 40%), transparent 35%), linear-gradient(145deg, #9bffc1, #44b975 72%, #23734e); }
+.game-screen--mobile .weapon-board__ammo--rocket > .weapon-board__weapon-icon { position: absolute; top: 21%; left: 50%; width: 32px; height: 38px; transform: translateX(-50%); }
+.game-screen--mobile .weapon-board__ammo--mine > .weapon-board__weapon-icon { position: absolute; top: 17%; left: 50%; width: 24px; height: 29px; transform: translateX(-50%); }
+.game-screen--mobile .weapon-board__ammo--rocket > b,
+.game-screen--mobile .weapon-board__ammo--mine > b,
+.game-screen--mobile .weapon-board__ammo--fast > b { position: absolute; bottom: 21%; left: 50%; transform: translateX(-50%); font-size: 16px; line-height: 1; }
+.game-screen--mobile .weapon-board__ammo--rocket > small,
+.game-screen--mobile .weapon-board__ammo--mine > small,
+.game-screen--mobile .weapon-board__ammo--fast > small { position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%); font-size: 9px; line-height: 1; }
+.game-screen--mobile .weapon-board__ammo--mine > b { font-size: 13px; }
+.game-screen--mobile .weapon-board__ammo--mine > small { font-size: 8px; }
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child { position: absolute; top: 19%; left: 50%; transform: translateX(-50%); font-size: 26px; line-height: 1; }
+.game-screen--mobile .flight-hud__meter--progress { display: grid; gap: 3px; }
+
+/* Align toolbar hover motion and refine the mobile flight controls. */
+.game-toolbar__settings { right: calc(max(20px, env(safe-area-inset-right)) + 56px); }
+.game-toolbar__back { transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease; }
+.game-toolbar__back:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 3px 0 #b95d20, inset 0 1px 0 rgb(255 255 255 / 75%); }
+
+.game-screen--mobile .game-toolbar__back:hover { filter: brightness(1.12); transform: translateY(-2px); box-shadow: 0 4px 0 #b95d20, 0 8px 18px rgb(5 27 46 / 30%), inset 0 2px 0 rgb(255 255 255 / 40%); }
+.game-screen--mobile .ranking-board { width: min(250px, 27vw); }
+.game-screen--mobile .ranking-board__row { grid-template-columns: 10px minmax(16px, 1fr) 16px 16px 18px; gap: 2px; }
+.game-screen--mobile .ranking-board__name small { display: none; }
+.game-screen--mobile .mobile-flight-controls { width: clamp(112px, 30vw, 128px); }
+.game-screen--mobile .speed-board { left: calc(max(10px, env(safe-area-inset-left)) + clamp(112px, 30vw, 128px) + 10px); bottom: calc(max(10px, env(safe-area-inset-bottom)) + 48px); width: clamp(88px, 24vw, 120px); }
+
+.game-screen--mobile .weapon-board { width: min(150px, 40vw); height: min(150px, 40vw); }
+.game-screen--mobile .weapon-board__item:nth-child(1) .weapon-board__ammo { width: clamp(70px, 21.6vw, 86px); height: clamp(70px, 21.6vw, 86px); }
+.game-screen--mobile .weapon-board__item:nth-child(3) .weapon-board__ammo,
+.game-screen--mobile .weapon-board__item--fast .weapon-board__ammo { width: clamp(43px, 13.2vw, 52px); height: clamp(43px, 13.2vw, 52px); }
+.game-screen--mobile .weapon-board__item:nth-child(3) { right: calc(2% + clamp(70px, 21.6vw, 86px) + 8px); bottom: 2%; left: auto; top: auto; }
+.game-screen--mobile .weapon-board__item--fast { right: 2%; bottom: calc(2% + clamp(70px, 21.6vw, 86px) + 8px); left: auto; top: auto; }
+.game-screen--mobile .weapon-board__ammo { display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 3px; }
+.game-screen--mobile .weapon-board__ammo--rocket > .weapon-board__weapon-icon { position: static; width: clamp(25px, 7.2vw, 32px); height: clamp(30px, 9vw, 38px); flex: 0 0 auto; transform: none; }
+.game-screen--mobile .weapon-board__ammo--mine > .weapon-board__weapon-icon { position: static; width: clamp(20px, 6vw, 25px); height: clamp(23px, 7vw, 30px); flex: 0 0 auto; transform: none; }
+.game-screen--mobile .weapon-board__ammo--rocket > b,
+.game-screen--mobile .weapon-board__ammo--mine > b,
+.game-screen--mobile .weapon-board__ammo--fast > b { position: static; transform: none; font-size: 14px; line-height: 1; }
+.game-screen--mobile .weapon-board__ammo--rocket > small,
+.game-screen--mobile .weapon-board__ammo--mine > small,
+.game-screen--mobile .weapon-board__ammo--fast > small { position: static; transform: none; font-size: 8px; line-height: 1; }
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child { position: static; transform: none; font-size: clamp(20px, 6vw, 25px); line-height: 1; }
+.game-screen--mobile .ranking-board { width: min(210px, 27vw); }
+.game-screen--mobile .speed-board { bottom: calc(max(10px, env(safe-area-inset-bottom)) + clamp(132px, 37vw, 160px)); }
+
+.game-screen--mobile .weapon-board__ammo { gap: 2px; }
+.game-screen--mobile .weapon-board__ammo--mine > b { font-size: 12px; }
+.game-screen--mobile .weapon-board__ammo--mine > small { font-size: 7px; }
+.game-screen--mobile .weapon-board__ammo--fast > span:first-child { font-size: clamp(18px, 5.5vw, 23px); }
+.game-screen--mobile .weapon-board__ammo--fast > b { font-size: 10px; }
+.game-screen--mobile .weapon-board__ammo--fast > small { font-size: 7px; }
+
+.aircraft-entity .map-player::before { display: none; }
+
+.mini-map__other-player--bot { border-color: rgb(38 48 39 / 92%); background: #263329; box-shadow: 0 0 3px rgb(10 20 12 / 72%); }
+
+.aircraft-entity--bot .map-player { filter: brightness(.7); }
+
+/* Mobile HUD layout: reserve the center top for level, align speed over the stick. */
+.game-screen--mobile {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 100dvh;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+}
+.game-screen--mobile .game-viewport {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: none;
+}
+.game-screen--mobile .flight-hud {
+  top: max(10px, env(safe-area-inset-top));
+  right: auto;
+  left: 50%;
+  width: min(37vw, 225px);
+  transform: translateX(-50%);
+}
+.game-screen--mobile .ranking-board {
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+  right: auto;
+  width: min(25vw, 150px);
+  max-height: min(38vh, 260px);
+}
+.game-screen--mobile .speed-board {
+  left: calc(max(12px, env(safe-area-inset-left)) + clamp(56px, 15vw, 64px));
+  bottom: calc(max(12px, env(safe-area-inset-bottom)) + clamp(112px, 30vw, 128px) + 30px);
+  width: clamp(100px, 27vw, 128px);
+  transform: translateX(-50%);
+}
+.game-screen--mobile .weapon-board__ammo { gap: 0; }
+.mini-map__view { display: none !important; }

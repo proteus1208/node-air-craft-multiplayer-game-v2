@@ -1,0 +1,48 @@
+
+{
+  "image": {
+    "filename": "a_clean_game_asset_sprite_sheet_tileset_style_im.png",
+    "width": 1536,
+    "height": 1024,
+    "coordinate_origin": "top-left",
+    "coordinate_unit": "pixels",
+    "camera": "orthographic_top_down_90_degrees",
+    "grid": {
+      "columns": 5,
+      "rows": 5,
+      "cell_width": 307,
+      "cell_height": 204
+    }
+  },
+  "objects": [
+    {"id":"rock_1","type":"rock","level":1,"left":0,"top":0,"width":307,"height":204,"anchor_x":153.5,"anchor_y":102},
+    {"id":"rock_2","type":"rock","level":2,"left":307,"top":0,"width":307,"height":204,"anchor_x":460.5,"anchor_y":102},
+    {"id":"rock_3","type":"rock","level":3,"left":614,"top":0,"width":307,"height":204,"anchor_x":767.5,"anchor_y":102},
+    {"id":"rock_4","type":"rock","level":4,"left":921,"top":0,"width":307,"height":204,"anchor_x":1074.5,"anchor_y":102},
+    {"id":"rock_5","type":"rock","level":5,"left":1228,"top":0,"width":307,"height":204,"anchor_x":1381.5,"anchor_y":102},
+
+    {"id":"pool_1","type":"pool","level":1,"left":0,"top":204,"width":307,"height":204,"anchor_x":153.5,"anchor_y":306},
+    {"id":"pool_2","type":"pool","level":2,"left":307,"top":204,"width":307,"height":204,"anchor_x":460.5,"anchor_y":306},
+    {"id":"pool_3","type":"pool","level":3,"left":614,"top":204,"width":307,"height":204,"anchor_x":767.5,"anchor_y":306},
+    {"id":"pool_4","type":"pool","level":4,"left":921,"top":204,"width":307,"height":204,"anchor_x":1074.5,"anchor_y":306},
+    {"id":"pool_5","type":"pool","level":5,"left":1228,"top":204,"width":307,"height":204,"anchor_x":1381.5,"anchor_y":306},
+
+    {"id":"mountain_1","type":"mountain","level":1,"left":0,"top":408,"width":307,"height":204,"anchor_x":153.5,"anchor_y":510},
+    {"id":"mountain_2","type":"mountain","level":2,"left":307,"top":408,"width":307,"height":204,"anchor_x":460.5,"anchor_y":510},
+    {"id":"mountain_3","type":"mountain","level":3,"left":614,"top":408,"width":307,"height":204,"anchor_x":767.5,"anchor_y":510},
+    {"id":"mountain_4","type":"mountain","level":4,"left":921,"top":408,"width":307,"height":204,"anchor_x":1074.5,"anchor_y":510},
+    {"id":"mountain_5","type":"mountain","level":5,"left":1228,"top":408,"width":307,"height":204,"anchor_x":1381.5,"anchor_y":510},
+
+    {"id":"flower_1","type":"flower","level":1,"left":0,"top":612,"width":307,"height":204,"anchor_x":153.5,"anchor_y":714},
+    {"id":"flower_2","type":"flower","level":2,"left":307,"top":612,"width":307,"height":204,"anchor_x":460.5,"anchor_y":714},
+    {"id":"flower_3","type":"flower","level":3,"left":614,"top":612,"width":307,"height":204,"anchor_x":767.5,"anchor_y":714},
+    {"id":"flower_4","type":"flower","level":4,"left":921,"top":612,"width":307,"height":204,"anchor_x":1074.5,"anchor_y":714},
+    {"id":"flower_5","type":"flower","level":5,"left":1228,"top":612,"width":307,"height":204,"anchor_x":1381.5,"anchor_y":714},
+
+    {"id":"cloud_1","type":"cloud","level":1,"left":0,"top":816,"width":307,"height":208,"anchor_x":153.5,"anchor_y":920},
+    {"id":"cloud_2","type":"cloud","level":2,"left":307,"top":816,"width":307,"height":208,"anchor_x":460.5,"anchor_y":920},
+    {"id":"cloud_3","type":"cloud","level":3,"left":614,"top":816,"width":307,"height":208,"anchor_x":767.5,"anchor_y":920},
+    {"id":"cloud_4","type":"cloud","level":4,"left":921,"top":816,"width":307,"height":208,"anchor_x":1074.5,"anchor_y":920},
+    {"id":"cloud_5","type":"cloud","level":5,"left":1228,"top":816,"width":307,"height":208,"anchor_x":1381.5,"anchor_y":920}
+  ]
+}
