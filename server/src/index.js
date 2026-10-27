@@ -1178,7 +1178,17 @@ export function handleConnection(socket) {
         player.inputSeq = seq;
         player.inputAppliedAt = Date.now();
       }
-      if (message.type === 'input' && message.input && typeof message.input === 'object') {
+      if (message.type === 'i' && Array.isArray(message.i)) {
+        player.input = {
+          left: false,
+          right: false,
+          'speed-up': false,
+          'speed-down': false,
+          yaw: Number.isFinite(message.i[0]) ? Math.max(-1, Math.min(1, message.i[0])) : 0,
+          throttle: Number.isFinite(message.i[1]) ? Math.max(-1, Math.min(1, message.i[1])) : 0,
+          fast: false,
+        };
+      } else if (message.type === 'input' && message.input && typeof message.input === 'object') {
         player.input = {
           left: Boolean(message.input.left),
           right: Boolean(message.input.right),

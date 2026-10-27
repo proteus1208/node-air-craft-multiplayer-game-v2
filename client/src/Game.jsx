@@ -6,6 +6,7 @@ import { advancePrediction, latestInput, recordInput, sampleRemote } from './net
 const inputResendMs = 50;
 const debugRefreshMs = 250;
 const hiddenUntilPlaced = { left: 0, top: 0, visibility: 'hidden' };
+const sameFlightInput = (left, right) => left.yaw === right.yaw && left.throttle === right.throttle;
 
 const gearIcon = <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.95l-.36-2.54A.49.49 0 0 0 13.88 2h-3.76a.49.49 0 0 0-.49.42L9.27 4.96c-.6.24-1.14.56-1.63.95l-2.39-.96a.5.5 0 0 0-.61.22L2.72 8.49a.5.5 0 0 0 .12.64l2.03 1.58a6.5 6.5 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.21.37.3.61.22l2.39-.96c.49.39 1.03.71 1.63.95l.36 2.54c.03.24.24.42.49.42h3.76c.25 0 .46-.18.49-.42l.36-2.54c.6-.24 1.14-.56 1.63-.95l2.39.96c.24.09.49 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>;
 
@@ -116,6 +117,8 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
   const inputStateRef = useRef(null);
   const entityEls = useRef({ players: new Map(), rockets: new Map() });
   const entityRefCallbacks = useRef(new Map());
+  const inputPacketRef = useRef(null);
+  const inputSentAtRef = useRef(0);
   const [debugOpen, setDebugOpen] = useState(readDebugFlag);
   const [debugStats, setDebugStats] = useState(null);
   const [weaponPress, setWeaponPress] = useState({ type: '', serial: 0 });
@@ -175,9 +178,22 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
     return { ...input, yaw: clamp(keyboardYaw + touchAnalog.current.yaw), throttle: clamp(keyboardThrottle + touchAnalog.current.throttle) };
   };
   inputStateRef.current = inputState;
-  const sendInput = (input) => {
-    const seq = net ? recordInput(net, input, performance.now()) : undefined;
-    sendMessage({ type: 'input', seq, input });
+  const sendInput = (input, force = false) => {
+    const flightInput = { yaw: input.yaw, throttle: input.throttle };
+    const now = performance.now();
+    const previous = inputPacketRef.current;
+    const changed = !previous || !sameFlightInput(previous.input, flightInput);
+    // A direction change is sent immediately. Repeated state is sent at 20Hz
+    // so lost packets recover without browser key-repeat or pointer-move spam.
+    if (!changed && !force && now - inputSentAtRef.current < inputResendMs) return;
+    if (changed) {
+      const seq = net ? recordInput(net, flightInput, now) : undefined;
+      inputPacketRef.current = { type: 'i', seq, i: [flightInput.yaw, flightInput.throttle], input: flightInput };
+    }
+    if (!inputPacketRef.current) return;
+    inputSentAtRef.current = now;
+    const { input: _input, ...packet } = inputPacketRef.current;
+    sendMessage(packet);
   };
   const sendAction = (type) => {
     const seq = net ? recordInput(net, latestInput(net), performance.now()) : undefined;
@@ -381,6 +397,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         if (!event.repeat) sendAction('activate-fast');
         return;
       }
+      if (event.repeat || heldKeys.current.has(control)) return;
       heldKeys.current.add(control);
       updateInput();
     };
@@ -388,6 +405,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       if (settingsOpen) return;
       const control = keyToControl.get(event.key.toLowerCase());
       if (!control || control === 'rocket' || control === 'mine' || control === 'fast') return;
+      if (!heldKeys.current.has(control)) return;
       heldKeys.current.delete(control);
       updateInput();
     };
