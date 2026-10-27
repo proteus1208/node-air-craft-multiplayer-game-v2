@@ -50,7 +50,7 @@ function spriteImageStyle(object, cameraScale = 1) {
 }
 
 function aircraftStyle(player, cameraScale = 1) {
-  const planeTier = Math.ceil(Math.max(1, Math.min(15, player.level)) / 3);
+  const planeTier = planeTierForLevel(player);
   const sizeScale = (player.isBot ? 0.7 : 1) / Math.max(cameraScale, 0.01);
   const planeFile = planeFiles[planeTier - 1];
   return {
@@ -63,8 +63,9 @@ function aircraftStyle(player, cameraScale = 1) {
     '--aircraft-image': 'url(/assets/plain/' + planeFile + ')',
   };
 }
-function planeTierForLevel(level) {
-  return Math.ceil(Math.max(1, Math.min(15, level)) / 3);
+function planeTierForLevel(player) {
+  const level = player?.level ?? 1;
+  return player?.planeTier ?? Math.ceil(Math.max(1, Math.min(15, level)) / 3);
 }
 
 function weaponImageStyle(weapon, cameraScale = 1) {
@@ -102,6 +103,7 @@ function compactKey(key) {
 
 export default function Game({ world, playerName, playerId, gameState, controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false }) {
   const heldKeys = useRef(new Set());
+  const weaponReadyRef = useRef({ rocket: true, mine: true });
   const touchAnalog = useRef({ yaw: 0, throttle: 0 });
   const viewportRef = useRef(null);
   const snapshotHistory = useRef([]);
@@ -122,15 +124,14 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     x: (world?.width ?? 0) / 2,
     y: (world?.height ?? 0) / 2,
     angle: 0,
-    speed: 35,
-    minSpeed: 35,
-    maxSpeed: 40,
+    speed: 150,
     speedKmh: 150,
     minSpeedKmh: 150,
     maxSpeedKmh: 206,
     hp: 100,
     maxHp: 100,
     level: 1,
+    cameraScale: 1,
     isBot: false,
     outOfMap: false,
     attackedAt: 0,
@@ -292,7 +293,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
       if (!control) return;
       event.preventDefault();
       if (control === 'rocket' || control === 'mine') {
-        if (event.repeat) return;
+        if (event.repeat || !weaponReadyRef.current[control]) return;
         setWeaponPress((current) => ({ type: control, serial: current.serial + 1 }));
         sendMessage({ type: control === 'rocket' ? 'launch-rocket' : 'drop-mine' });
         return;
@@ -338,17 +339,27 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     }
   }, [settingsOpen, sendMessage]);
 
-  const speedProgress = ownPlayer.maxSpeed === ownPlayer.minSpeed ? 0 : ((ownPlayer.speed - ownPlayer.minSpeed) / (ownPlayer.maxSpeed - ownPlayer.minSpeed)) * 100;
-  const speedKmh = Math.round(ownPlayer.speedKmh ?? ownPlayer.speed * 5.5);
-  const minSpeedKmh = ownPlayer.minSpeedKmh ?? Math.round(ownPlayer.minSpeed * 5.5);
-  const maxSpeedKmh = ownPlayer.maxSpeedKmh ?? Math.round(ownPlayer.maxSpeed * 5.5);
+  const speedKmh = Math.round(ownPlayer.speedKmh ?? ownPlayer.speed ?? 0);
+  const minSpeedKmh = ownPlayer.minSpeedKmh ?? speedKmh;
+  const maxSpeedKmh = ownPlayer.maxSpeedKmh ?? speedKmh;
+  const speedProgress = maxSpeedKmh === minSpeedKmh ? 0 : ((speedKmh - minSpeedKmh) / (maxSpeedKmh - minSpeedKmh)) * 100;
   const fastActiveRemainingMs = ownPlayer.fastActiveRemainingMs ?? 0;
   const fastCooldownRemainingMs = ownPlayer.fastCooldownRemainingMs ?? 0;
   const fastCooldownMs = ownPlayer.fastCooldownMs ?? 10000;
   const fastDurationMs = ownPlayer.fastDurationMs ?? 3000;
   const fastDurationSeconds = (fastDurationMs / 1000).toFixed(0);
   const fastReadyProgress = Math.max(0, Math.min(1, 1 - fastCooldownRemainingMs / fastCooldownMs));
-  const targetCameraScale = Math.max(0.5, 1 - ((Math.max(1, Math.min(15, ownPlayer.level)) - 1) / 14) * 0.5);
+  const rocketReady = (ownPlayer.rocketAmmo ?? 0) > 0 && ownPlayer.rocketPhase !== 'preparing' && !(ownPlayer.spawnProtectionRemainingMs > 0);
+  const mineReady = (ownPlayer.mineAmmo ?? 0) > 0 && ownPlayer.minePhase !== 'preparing' && !(ownPlayer.spawnProtectionRemainingMs > 0);
+  weaponReadyRef.current.rocket = rocketReady;
+  weaponReadyRef.current.mine = mineReady;
+  const rocketMeter = ownPlayer.rocketPhase === 'preparing' && ownPlayer.rocketPrepareMs
+    ? Math.max(0, Math.min(1, 1 - (ownPlayer.rocketPhaseRemaining ?? 0) / ownPlayer.rocketPrepareMs))
+    : (ownPlayer.rocketAmmo >= ownPlayer.rocketCapacity ? 1 : (ownPlayer.rocketChargeProgress ?? 0));
+  const mineMeter = ownPlayer.minePhase === 'preparing' && ownPlayer.minePrepareMs
+    ? Math.max(0, Math.min(1, 1 - (ownPlayer.minePhaseRemaining ?? 0) / ownPlayer.minePrepareMs))
+    : (ownPlayer.mineAmmo >= ownPlayer.mineCapacity ? 1 : (ownPlayer.mineChargeProgress ?? 0));
+  const targetCameraScale = ownPlayer.cameraScale ?? 1;
   const [cameraScale, setCameraScale] = useState(targetCameraScale);
   const cameraScaleRef = useRef(targetCameraScale);
   useEffect(() => {
@@ -451,17 +462,17 @@ export default function Game({ world, playerName, playerId, gameState, controls,
 
       <aside className="weapon-board" aria-label="Weapons and ammunition">
         <div className="weapon-board__item">
-          <button type="button" key={`rocket-${weaponPress.type === 'rocket' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--rocket ${ownPlayer.rocketAmmo > 0 ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'rocket' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.rocketAmmo >= ownPlayer.rocketCapacity ? 0 : (ownPlayer.rocketChargeProgress ?? 0) * 100}%` }} onClick={() => { setWeaponPress((current) => ({ type: 'rocket', serial: current.serial + 1 })); sendMessage({ type: 'launch-rocket' }); }} disabled={ownPlayer.rocketAmmo < 1 || ownPlayer.spawnProtectionRemainingMs > 0} aria-label={`${ownPlayer.rocketAmmo} rockets available out of ${ownPlayer.rocketCapacity}`} title={`Rocket: ${Math.round(ownPlayer.rocketDamage ?? 0)} base damage, ${(ownPlayer.rocketChargeMs ?? 2300) / 1000}s recharge, up to 180 px blast radius. Press ${compactKey(controls.rocket)} or tap to launch.`}>
-            <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'rocket', variant: planeTierForLevel(ownPlayer.level) })} /><b key={`rocket-count-${ammoRechargePulse.rocket}`} className={ammoRechargePulse.rocket ? 'weapon-board__count--recharged' : ''}>{ownPlayer.rocketAmmo}</b><small>/{ownPlayer.rocketCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${ownPlayer.rocketChargeProgress ?? 1})` }} />
+          <button type="button" key={`rocket-${weaponPress.type === 'rocket' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--rocket ${rocketReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'rocket' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.rocketPhase === 'preparing' ? rocketMeter * 100 : (ownPlayer.rocketAmmo >= ownPlayer.rocketCapacity ? 0 : (ownPlayer.rocketChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!rocketReady) return; setWeaponPress((current) => ({ type: 'rocket', serial: current.serial + 1 })); sendMessage({ type: 'launch-rocket' }); }} disabled={!rocketReady} aria-label={`${ownPlayer.rocketAmmo} rockets available out of ${ownPlayer.rocketCapacity}`} title={`Rocket: ${Math.round(ownPlayer.rocketDamage ?? 0)} base damage, ${(ownPlayer.rocketPrepareMs ?? 1000) / 1000}s between shots, ${(ownPlayer.rocketChargeMs ?? 2300) / 1000}s ammo recharge. Press ${compactKey(controls.rocket)} or tap to launch.`}>
+            <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'rocket', variant: planeTierForLevel(ownPlayer) })} /><b key={`rocket-count-${ammoRechargePulse.rocket}`} className={ammoRechargePulse.rocket ? 'weapon-board__count--recharged' : ''}>{ownPlayer.rocketAmmo}</b><small>/{ownPlayer.rocketCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${rocketMeter})` }} />
           </button>
-          <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.rocket)}</kbd><strong>ROCKETS</strong></span><small>DMG {Math.round(ownPlayer.rocketDamage ?? 0)}</small><small>RECHARGE {(ownPlayer.rocketChargeMs / 1000).toFixed(1)}s</small></span>
+          <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.rocket)}</kbd><strong>ROCKETS</strong></span><small>DMG {Math.round(ownPlayer.rocketDamage ?? 0)}</small><small>PREP {((ownPlayer.rocketPrepareMs ?? 1000) / 1000).toFixed(1)}s</small><small>RECHARGE {((ownPlayer.rocketChargeMs ?? 2300) / 1000).toFixed(1)}s</small></span>
         </div>
         <div className="weapon-board__divider" />
         <div className="weapon-board__item">
-          <button type="button" key={`mine-${weaponPress.type === 'mine' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--mine ${ownPlayer.mineAmmo > 0 ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'mine' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.mineAmmo >= ownPlayer.mineCapacity ? 0 : (ownPlayer.mineChargeProgress ?? 0) * 100}%` }} onClick={() => { setWeaponPress((current) => ({ type: 'mine', serial: current.serial + 1 })); sendMessage({ type: 'drop-mine' }); }} disabled={ownPlayer.mineAmmo < 1 || ownPlayer.spawnProtectionRemainingMs > 0} aria-label={`${ownPlayer.mineAmmo} mines available out of ${ownPlayer.mineCapacity}`} title={`Mine: ${Math.round(ownPlayer.mineDamage ?? 35)} base damage, ${(ownPlayer.mineChargeMs ?? 5000) / 1000}s recharge, triggers within 112 px, up to 180 px blast radius. Press ${compactKey(controls.mine)} or tap to drop.`}>
-            <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'mine', variant: planeTierForLevel(ownPlayer.level) })} /><b key={`mine-count-${ammoRechargePulse.mine}`} className={ammoRechargePulse.mine ? 'weapon-board__count--recharged' : ''}>{ownPlayer.mineAmmo}</b><small>/{ownPlayer.mineCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${ownPlayer.mineChargeProgress ?? 1})` }} />
+          <button type="button" key={`mine-${weaponPress.type === 'mine' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--mine ${mineReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'mine' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.minePhase === 'preparing' ? mineMeter * 100 : (ownPlayer.mineAmmo >= ownPlayer.mineCapacity ? 0 : (ownPlayer.mineChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!mineReady) return; setWeaponPress((current) => ({ type: 'mine', serial: current.serial + 1 })); sendMessage({ type: 'drop-mine' }); }} disabled={!mineReady} aria-label={`${ownPlayer.mineAmmo} mines available out of ${ownPlayer.mineCapacity}`} title={`Mine: ${Math.round(ownPlayer.mineDamage ?? 35)} base damage, ${(ownPlayer.minePrepareMs ?? 2000) / 1000}s between drops, ${(ownPlayer.mineChargeMs ?? 5000) / 1000}s ammo recharge. Press ${compactKey(controls.mine)} or tap to drop.`}>
+            <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'mine', variant: planeTierForLevel(ownPlayer) })} /><b key={`mine-count-${ammoRechargePulse.mine}`} className={ammoRechargePulse.mine ? 'weapon-board__count--recharged' : ''}>{ownPlayer.mineAmmo}</b><small>/{ownPlayer.mineCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${mineMeter})` }} />
           </button>
-          <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.mine)}</kbd><strong>MINES</strong></span><small>DMG {Math.round(ownPlayer.mineDamage ?? 0)}</small><small>RECHARGE {(ownPlayer.mineChargeMs / 1000).toFixed(1)}s</small></span>
+          <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.mine)}</kbd><strong>MINES</strong></span><small>DMG {Math.round(ownPlayer.mineDamage ?? 0)}</small><small>PREP {((ownPlayer.minePrepareMs ?? 2000) / 1000).toFixed(1)}s</small><small>RECHARGE {((ownPlayer.mineChargeMs ?? 5000) / 1000).toFixed(1)}s</small></span>
         </div>
         <div className="weapon-board__divider" />
         <div className="weapon-board__item weapon-board__item--fast" title={`Fast boost: lasts ${fastDurationSeconds} seconds, accelerates at 150 km/h per second up to 2× max speed, then decelerates at 250 km/h per second to your starting speed. Cooldown: ${(fastCooldownMs / 1000).toFixed(1)} seconds. Press again while active to stop. Use ${compactKey(controls.fast)}.`}>
