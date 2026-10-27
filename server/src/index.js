@@ -458,6 +458,38 @@ function shortestAngleDelta(from, to) {
   return ((to - from + 540) % 360) - 180;
 }
 
+function rocketForwardOffset(rocket, plane) {
+  const ahead = (Math.atan2(plane.x - rocket.x, -(plane.y - rocket.y)) * 180) / Math.PI;
+  return shortestAngleDelta(rocket.angle, ahead);
+}
+
+function rocketCanTrack(rocket, plane) {
+  if (!plane || plane.hp <= 0 || plane.id === rocket.ownerId) return false;
+  const sameTeam = Boolean(rocket.ownerTeamId) && getEffectiveTeamId(plane) === rocket.ownerTeamId;
+  if (sameTeam && !rocket.teamDamageEnabled) return false;
+  const distance = Math.hypot(plane.x - rocket.x, plane.y - rocket.y);
+  if (distance > rocket.trackingRange) return false;
+  return Math.abs(rocketForwardOffset(rocket, plane)) <= rocket.trackingCone;
+}
+
+function chooseRocketTarget(rocket) {
+  const current = rocket.trackingTargetId ? players.get(rocket.trackingTargetId) : null;
+  if (rocketCanTrack(rocket, current)) return current;
+  let best = null;
+  let bestScore = Infinity;
+  for (const candidate of players.values()) {
+    if (!rocketCanTrack(rocket, candidate)) continue;
+    const distance = Math.hypot(candidate.x - rocket.x, candidate.y - rocket.y);
+    const angle = Math.abs(rocketForwardOffset(rocket, candidate));
+    const score = (angle / Math.max(1, rocket.trackingCone)) + (distance / Math.max(1, rocket.trackingRange));
+    if (score < bestScore) {
+      best = candidate;
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 function syncWeaponPhase(player, now) {
   player.rocketPhase = player.rocketAmmo < 1 ? 'charging' : (now < player.rocketReadyAt ? 'preparing' : 'ready');
   player.minePhase = player.mineAmmo < 1 ? 'charging' : (now < player.mineReadyAt ? 'preparing' : 'ready');
@@ -712,33 +744,11 @@ function tick() {
       rocket.active = true;
     }
     if (!rocket.active) continue;
-    if (!rocket.ownerIsBot || rocket.mineLaunched) {
-      let target = rocket.trackingTargetId ? players.get(rocket.trackingTargetId) : null;
-      if (target) {
-        const distance = Math.hypot(target.x - rocket.x, target.y - rocket.y);
-        const targetAngle = (Math.atan2(target.x - rocket.x, -(target.y - rocket.y)) * 180) / Math.PI;
-        const angleDelta = Math.abs(shortestAngleDelta(rocket.angle, targetAngle));
-        const sameTeam = Boolean(rocket.ownerTeamId) && getEffectiveTeamId(target) === rocket.ownerTeamId;
-        if (target.hp <= 0 || target.id === rocket.ownerId || distance > rocket.trackingRange || angleDelta > rocket.trackingCone || (sameTeam && !rocket.teamDamageEnabled)) target = null;
-      }
-      if (!target) {
-        rocket.trackingTargetId = null;
-        target = [...players.values()]
-          .filter((candidate) => candidate.id !== rocket.ownerId && candidate.hp > 0 && !(rocket.ownerTeamId && getEffectiveTeamId(candidate) === rocket.ownerTeamId && !rocket.teamDamageEnabled))
-          .map((candidate) => {
-            const distance = Math.hypot(candidate.x - rocket.x, candidate.y - rocket.y);
-            const angle = (Math.atan2(candidate.x - rocket.x, -(candidate.y - rocket.y)) * 180) / Math.PI;
-            return { candidate, distance, angleDelta: Math.abs(shortestAngleDelta(rocket.angle, angle)) };
-          })
-          .filter(({ distance, angleDelta }) => distance <= rocket.trackingRange && angleDelta <= rocket.trackingCone)
-          .sort((a, b) => a.angleDelta - b.angleDelta || a.distance - b.distance)[0]?.candidate ?? null;
-        if (target) rocket.trackingTargetId = target.id;
-      }
-      if (target) {
-        const targetAngle = (Math.atan2(target.x - rocket.x, -(target.y - rocket.y)) * 180) / Math.PI;
-        const turn = shortestAngleDelta(rocket.angle, targetAngle);
-        rocket.angle += Math.max(-rocket.turnRate * delta, Math.min(rocket.turnRate * delta, turn));
-      }
+    const target = chooseRocketTarget(rocket);
+    rocket.trackingTargetId = target ? target.id : null;
+    if (target) {
+      const turn = rocketForwardOffset(rocket, target);
+      rocket.angle += Math.max(-rocket.turnRate * delta, Math.min(rocket.turnRate * delta, turn));
     }
     const previousX = rocket.x;
     const previousY = rocket.y;

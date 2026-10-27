@@ -68,6 +68,16 @@ function planeTierForLevel(player) {
   return player?.planeTier ?? Math.ceil(Math.max(1, Math.min(15, level)) / 3);
 }
 
+function targetLockSize(player) {
+  return 84 * (player?.isBot ? 0.7 : 1);
+}
+
+function enemyMarkerSize(weapon, cameraScale = 1) {
+  const botScale = weapon.ownerIsBot ? 0.8 : 1;
+  const longestSide = weapon.type === 'mine' ? 32 : (weapon.mineLaunched ? 24 : 34);
+  return (longestSide * botScale) / Math.max(cameraScale, 0.01);
+}
+
 function weaponImageStyle(weapon, cameraScale = 1) {
   const color = (weapon.type === 'rocket' ? rocketColors : mineColors)[Math.min(5, weapon.variant ?? 1) - 1];
   const prefix = weapon.type === 'rocket' ? 'r' : 'm';
@@ -405,10 +415,10 @@ export default function Game({ world, playerName, playerId, gameState, controls,
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
             </div>
             <div className="map-player" style={aircraftStyle(player, cameraScale)} role="img" aria-label={`Plane for ${player.name}`} />
-            {trackedTargetIds.has(player.id) && <i className="aircraft-target-lock" style={{ zoom: 1 / cameraScale, width: `${player.isBot ? 54.4 : 68}px`, height: `${player.isBot ? 67.2 : 84}px` }} aria-hidden="true" />}
+            {trackedTargetIds.has(player.id) && <i className="aircraft-target-lock" style={{ zoom: 1 / cameraScale, width: `${targetLockSize(player)}px`, height: `${targetLockSize(player)}px` }} aria-hidden="true" />}
           </div>)}
-          {(stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active).map((rocket) => <i className={'world-rocket ' + (rocket.ownerIsBot ? 'world-rocket--bot ' : '') + (rocket.mineLaunched ? 'world-rocket--mine ' : '') + (isEnemyWeapon(rocket) ? 'world-rocket--enemy' : '')} key={rocket.id} style={{ ...weaponImageStyle({ type: 'rocket', variant: rocket.variant, ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale), left: rocket.x, top: rocket.y, transform: 'translate(-50%, -50%) rotate(' + rocket.angle + 'deg)' }}>{isEnemyWeapon(rocket) && <i className="world-weapon-enemy-marker" aria-hidden="true" />}</i>)}
-          {(stateForDisplay?.mines ?? []).filter((mine) => mine.visible).map((mine) => <i className={'world-mine ' + (mine.armed ? 'world-mine--armed ' : '') + (isEnemyWeapon(mine) ? 'world-mine--enemy' : '')} key={mine.id} style={{ ...weaponImageStyle({ type: 'mine', variant: mine.variant, ownerIsBot: mine.ownerIsBot }, cameraScale), left: mine.x, top: mine.y }}>{isEnemyWeapon(mine) && <i className="world-weapon-enemy-marker" aria-hidden="true" />}</i>)}
+          {(stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active).map((rocket) => { const marker = enemyMarkerSize({ type: 'rocket', ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale); return <i className={'world-rocket ' + (rocket.ownerIsBot ? 'world-rocket--bot ' : '') + (rocket.mineLaunched ? 'world-rocket--mine ' : '') + (isEnemyWeapon(rocket) ? 'world-rocket--enemy' : '')} key={rocket.id} style={{ ...weaponImageStyle({ type: 'rocket', variant: rocket.variant, ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale), left: rocket.x, top: rocket.y, transform: 'translate(-50%, -50%) rotate(' + rocket.angle + 'deg)' }}>{isEnemyWeapon(rocket) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
+          {(stateForDisplay?.mines ?? []).filter((mine) => mine.visible).map((mine) => { const marker = enemyMarkerSize({ type: 'mine', ownerIsBot: mine.ownerIsBot }, cameraScale); return <i className={'world-mine ' + (mine.armed ? 'world-mine--armed ' : '') + (isEnemyWeapon(mine) ? 'world-mine--enemy' : '')} key={mine.id} style={{ ...weaponImageStyle({ type: 'mine', variant: mine.variant, ownerIsBot: mine.ownerIsBot }, cameraScale), left: mine.x, top: mine.y }}>{isEnemyWeapon(mine) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
           {(stateForDisplay?.blasts ?? []).map((blast) => <i className="map-object world-blast" key={blast.id} style={blastStyle(blast, cameraScale)} aria-hidden="true" />)}
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
         {world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
@@ -417,7 +427,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
           </div>
           <div className="map-player" style={aircraftStyle(ownPlayer)} role="img" aria-label={'Plane for ' + ownPlayer.name} />
-          {trackedTargetIds.has(playerId) && <i className="aircraft-target-lock" style={{ zoom: 1 / cameraScale,  width: '68px', height: '84px' }} aria-hidden="true" />}
+          {trackedTargetIds.has(playerId) && <i className="aircraft-target-lock" style={{ width: `${targetLockSize(ownPlayer)}px`, height: `${targetLockSize(ownPlayer)}px` }} aria-hidden="true" />}
         </div>}
       </div>
 

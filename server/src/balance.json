@@ -79,7 +79,7 @@
       "level15": 1200
     },
     "rocketTrackingConeDeg": {
-      "comment": "Homing cone in front of a rocket, in degrees. A target outside this angle is ignored.",
+      "comment": "Half-angle of the forward view, in degrees. Straight ahead is 0. The rocket only considers planes between -this and +this.",
       "level1": 15,
       "level15": 45
     },
