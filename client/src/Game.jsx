@@ -68,8 +68,9 @@ function planeTierForLevel(player) {
   return player?.planeTier ?? Math.ceil(Math.max(1, Math.min(15, level)) / 3);
 }
 
-function targetLockSize(player) {
-  return 84 * (player?.isBot ? 0.7 : 1);
+function targetLockSize(player, cameraScale = 1) {
+  const body = 84 * (player?.isBot ? 0.7 : 1);
+  return body / Math.max(cameraScale, 0.01);
 }
 
 function enemyMarkerSize(weapon, cameraScale = 1) {
@@ -415,7 +416,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
             </div>
             <div className="map-player" style={aircraftStyle(player, cameraScale)} role="img" aria-label={`Plane for ${player.name}`} />
-            {trackedTargetIds.has(player.id) && <i className="aircraft-target-lock" style={{ zoom: 1 / cameraScale, width: `${targetLockSize(player)}px`, height: `${targetLockSize(player)}px` }} aria-hidden="true" />}
+            {trackedTargetIds.has(player.id) && <i className="aircraft-target-lock" style={{ width: `${targetLockSize(player, cameraScale)}px`, height: `${targetLockSize(player, cameraScale)}px` }} aria-hidden="true" />}
           </div>)}
           {(stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active).map((rocket) => { const marker = enemyMarkerSize({ type: 'rocket', ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale); return <i className={'world-rocket ' + (rocket.ownerIsBot ? 'world-rocket--bot ' : '') + (rocket.mineLaunched ? 'world-rocket--mine ' : '') + (isEnemyWeapon(rocket) ? 'world-rocket--enemy' : '')} key={rocket.id} style={{ ...weaponImageStyle({ type: 'rocket', variant: rocket.variant, ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale), left: rocket.x, top: rocket.y, transform: 'translate(-50%, -50%) rotate(' + rocket.angle + 'deg)' }}>{isEnemyWeapon(rocket) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
           {(stateForDisplay?.mines ?? []).filter((mine) => mine.visible).map((mine) => { const marker = enemyMarkerSize({ type: 'mine', ownerIsBot: mine.ownerIsBot }, cameraScale); return <i className={'world-mine ' + (mine.armed ? 'world-mine--armed ' : '') + (isEnemyWeapon(mine) ? 'world-mine--enemy' : '')} key={mine.id} style={{ ...weaponImageStyle({ type: 'mine', variant: mine.variant, ownerIsBot: mine.ownerIsBot }, cameraScale), left: mine.x, top: mine.y }}>{isEnemyWeapon(mine) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}

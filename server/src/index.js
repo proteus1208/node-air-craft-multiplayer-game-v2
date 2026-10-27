@@ -474,6 +474,10 @@ function rocketCanTrack(rocket, plane) {
 
 function chooseRocketTarget(rocket) {
   const current = rocket.trackingTargetId ? players.get(rocket.trackingTargetId) : null;
+  if (rocket.mineLaunched) {
+    if (!current || current.hp <= 0 || current.id === rocket.ownerId) return null;
+    return current;
+  }
   if (rocketCanTrack(rocket, current)) return current;
   let best = null;
   let bestScore = Infinity;
