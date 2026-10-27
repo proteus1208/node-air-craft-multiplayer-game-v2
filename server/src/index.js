@@ -1,8 +1,8 @@
 import { WebSocketServer } from 'ws';
+import { MAX_LEVEL, fixed, levelStats } from './balance.js';
 
 const port = Number(process.env.PORT ?? 3001);
 const server = new WebSocketServer({ port });
-const MAX_LEVEL = 15;
 
 // A single fixed world is generated when the server starts, then shared with
 // every client that joins this server process.
@@ -16,20 +16,21 @@ let lastTickAt = Date.now();
 let lastBroadcastAt = 0;
 
 function createWorld() {
-  const width = 4000;
-  const height = 4000;
-  let seed = 48271;
+  const width = fixed('worldWidth');
+  const height = fixed('worldHeight');
+  const margin = fixed('featureMargin');
+  let seed = fixed('worldSeed');
   const random = () => {
     seed = (seed * 16807) % 2147483647;
     return (seed - 1) / 2147483646;
   };
-  const clouds = Array.from({ length: 9 }, (_, index) => ({
+  const clouds = Array.from({ length: fixed('cloudCount') }, (_, index) => ({
     id: `cloud-${index}`,
     type: 'cloud',
-    x: 160 + random() * (width - 320),
-    y: 140 + random() * (height - 280),
-    size: 190 + random() * 90,
-    variant: Math.floor(random() * 5) + 1,
+    x: fixed('cloudMarginX') + random() * (width - fixed('cloudMarginX') * 2),
+    y: fixed('cloudMarginY') + random() * (height - fixed('cloudMarginY') * 2),
+    size: fixed('cloudSizeMin') + random() * (fixed('cloudSizeMax') - fixed('cloudSizeMin')),
+    variant: Math.floor(random() * fixed('variantCount')) + 1,
   }));
   // Place land features with a shared clearance radius so flowers, trees,
   // rocks, and lakes don't overlap or hide each other.
@@ -37,10 +38,10 @@ function createWorld() {
   const placeObjects = (type, count, sizeMin, sizeMax, clearance) => {
     for (let index = 0; index < count; index += 1) {
       let point = null;
-      for (let attempt = 0; attempt < 500; attempt += 1) {
+      for (let attempt = 0; attempt < fixed('featurePlaceAttempts'); attempt += 1) {
         const candidate = {
-          x: 140 + random() * (width - 280),
-          y: 140 + random() * (height - 280),
+          x: margin + random() * (width - margin * 2),
+          y: margin + random() * (height - margin * 2),
         };
         if (objects.every((other) => Math.hypot(other.x - candidate.x, other.y - candidate.y) >= clearance)) {
           point = candidate;
@@ -53,75 +54,63 @@ function createWorld() {
         type,
         ...point,
         size: sizeMin + random() * (sizeMax - sizeMin),
-        variant: Math.floor(random() * 5) + 1,
+        variant: Math.floor(random() * fixed('variantCount')) + 1,
       });
     }
   };
-  placeObjects('tree', 100, 76, 114, 155);
-  placeObjects('flower', 168, 34, 58, 100);
-  placeObjects('rock', 42, 54, 92, 145);
-  placeObjects('pool', 16, 120, 210, 240);
+  placeObjects('tree', fixed('treeCount'), fixed('treeSizeMin'), fixed('treeSizeMax'), fixed('treeClearance'));
+  placeObjects('flower', fixed('flowerCount'), fixed('flowerSizeMin'), fixed('flowerSizeMax'), fixed('flowerClearance'));
+  placeObjects('rock', fixed('rockCount'), fixed('rockSizeMin'), fixed('rockSizeMax'), fixed('rockClearance'));
+  placeObjects('pool', fixed('lakeCount'), fixed('lakeSizeMin'), fixed('lakeSizeMax'), fixed('lakeClearance'));
 
   return { width, height, clouds, objects };
 }
 
-function levelStats(level) {
-  const progress = Math.max(0, level - 1);
-  const minSpeed = Math.round(35 - (progress * 15) / (MAX_LEVEL - 1));
-  const maxSpeed = Math.round(40 + (progress * 20) / (MAX_LEVEL - 1));
-  const minSpeedKmh = Math.round(150 + progress * 12.5);
-  const speedRangeKmh = Math.round(56 + progress * 14);
-  return {
-    minSpeed,
-    maxSpeed,
-    // L1 range is 70% of its previous 80 km/h spread; L5 is exactly 2x L1.
-    minSpeedKmh,
-    maxSpeedKmh: minSpeedKmh + speedRangeKmh,
-    speedAccelerationKmhPerSec: 36,
-    rocketCapacity: 3 + Math.floor(level / 2),
-    mineCapacity: 2 + Math.floor(level / 3),
-    maxHp: 100 + progress * 10,
-    treatmentPerSecond: 1 + (progress * 2) / (MAX_LEVEL - 1),
-    rocketPrepareMs: 1000 - progress * 50,
-    rocketChargeMs: Math.round(2300 - (progress * 1100) / (MAX_LEVEL - 1)),
-    minePrepareMs: 2000 - progress * 100,
-    mineChargeMs: Math.round(5000 - (progress * 1800) / (MAX_LEVEL - 1)),
-    fastDurationMs: Math.round(3000 + (progress * 2000) / (MAX_LEVEL - 1)),
-    fastCooldownMs: Math.round(10000 - (progress * 5000) / (MAX_LEVEL - 1)),
-    rocketDamage: Math.round(20 + (progress * 40) / (MAX_LEVEL - 1)),
-    rocketRange: 900 + progress * 250,
-    mineDamage: Math.round(35 + (progress * 115) / (MAX_LEVEL - 1)),
-  };
-}
-
 function getEffectiveTeamId(player) {
-  return player.level >= MAX_LEVEL ? 'team:level-15' : player.teamId;
+  return player.level >= MAX_LEVEL ? `team:level-${MAX_LEVEL}` : player.teamId;
 }
 
-function getSpeedKmh(player, stats) {
-  const range = Math.max(1, stats.maxSpeed - stats.minSpeed);
-  const progress = (player.speed - stats.minSpeed) / range;
-  return Math.round(stats.minSpeedKmh + progress * (stats.maxSpeedKmh - stats.minSpeedKmh));
+function mineSlowMultiplier(player, now = Date.now()) {
+  if (!player.mineSlowUntil || now >= player.mineSlowUntil) return 1;
+  const duration = Math.max(1, player.mineSlowDurationMs || 1);
+  const t = Math.max(0, Math.min(1, (now - player.mineSlowStartedAt) / duration));
+  const ramp = 0.3;
+  const depth = t < ramp ? t / ramp : (t > 1 - ramp ? (1 - t) / ramp : 1);
+  const smooth = depth * depth * (3 - 2 * depth);
+  return 1 - 0.5 * smooth;
 }
 
-function speedUnitsForKmh(speedKmh, stats) {
-  const displayedRange = Math.max(1, stats.maxSpeedKmh - stats.minSpeedKmh);
-  return stats.minSpeed + ((speedKmh - stats.minSpeedKmh) / displayedRange) * (stats.maxSpeed - stats.minSpeed);
+function applyMineSlow(player, now, durationMs) {
+  const ramp = 0.3;
+  const alreadySlow = player.mineSlowUntil && now < player.mineSlowUntil;
+  player.mineSlowDurationMs = durationMs;
+  player.mineSlowStartedAt = alreadySlow ? now - ramp * durationMs : now;
+  player.mineSlowUntil = player.mineSlowStartedAt + durationMs;
+}
+
+function getSpeedKmh(player) {
+  return Math.round(player.speed * mineSlowMultiplier(player));
+}
+
+function planeWorldSpeed(player, stats) {
+  const botScale = player.isBot ? fixed('botSpeedMultiplier') : 1;
+  return (getSpeedKmh(player) * fixed('worldSpeedScale') / fixed('kmhToMetersPerSecond')) * botScale;
 }
 
 function createSpawnPosition() {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  const margin = fixed('spawnEdgeMargin');
+  for (let attempt = 0; attempt < fixed('spawnAttempts'); attempt += 1) {
     const position = {
-      x: 140 + Math.random() * (world.width - 280),
-      y: 140 + Math.random() * (world.height - 280),
+      x: margin + Math.random() * (world.width - margin * 2),
+      y: margin + Math.random() * (world.height - margin * 2),
     };
-    if ([...players.values()].every((player) => Math.hypot(player.x - position.x, player.y - position.y) >= 260)) return position;
+    if ([...players.values()].every((player) => Math.hypot(player.x - position.x, player.y - position.y) >= fixed('spawnClearance'))) return position;
   }
-  return { x: 140 + Math.random() * (world.width - 280), y: 140 + Math.random() * (world.height - 280) };
+  return { x: margin + Math.random() * (world.width - margin * 2), y: margin + Math.random() * (world.height - margin * 2) };
 }
 
 function chooseBotSpawnLevel() {
-  const weights = [40, 30, 20, 10];
+  const weights = fixed('botSpawnWeights');
   let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
   for (let index = 0; index < weights.length; index += 1) {
     roll -= weights[index];
@@ -136,7 +125,7 @@ function createPlayer(id, name, isBot = false) {
   const position = createSpawnPosition();
   return {
     id,
-    name: String(name || 'Pilot').slice(0, 24),
+    name: String(name || 'Pilot').slice(0, fixed('nameMaxLength')),
     teamId: null,
     teamDamageEnabled: false,
     score: 0,
@@ -144,7 +133,7 @@ function createPlayer(id, name, isBot = false) {
     x: position.x,
     y: position.y,
     angle: Math.random() * 360,
-    speed: stats.minSpeed,
+    speed: stats.minSpeedKmh,
     hp: stats.maxHp,
     level,
     xp: 0,
@@ -162,7 +151,7 @@ function createPlayer(id, name, isBot = false) {
     mineReloadAt: 0,
     respawnAt: 0,
     spawnedAt: Date.now(),
-    invulnerableUntil: Date.now() + 3000,
+    invulnerableUntil: Date.now() + fixed('spawnInvulnerableMs'),
     isBot,
     nextBotDecisionAt: 0,
     botTargetId: null,
@@ -177,6 +166,9 @@ function createPlayer(id, name, isBot = false) {
     fastReadyAt: 0,
     fastOriginalSpeed: null,
     lastAttackedAt: 0,
+    mineSlowStartedAt: 0,
+    mineSlowUntil: 0,
+    mineSlowDurationMs: 0,
   };
 }
 
@@ -193,7 +185,7 @@ function respawnPlayer(player) {
   player.x = position.x;
   player.y = position.y;
   player.angle = Math.random() * 360;
-  player.speed = stats.minSpeed;
+  player.speed = stats.minSpeedKmh;
   player.hp = stats.maxHp;
   player.kills = 0;
   player.input = {};
@@ -209,7 +201,7 @@ function respawnPlayer(player) {
   player.mineReloadAt = 0;
   player.respawnAt = 0;
   player.spawnedAt = Date.now();
-  player.invulnerableUntil = player.spawnedAt + 3000;
+  player.invulnerableUntil = player.spawnedAt + fixed('spawnInvulnerableMs');
   player.nextBotDecisionAt = 0;
   player.botTargetId = null;
   player.botTargetExpiresAt = 0;
@@ -223,10 +215,13 @@ function respawnPlayer(player) {
   player.fastReadyAt = 0;
   player.fastOriginalSpeed = null;
   player.lastAttackedAt = 0;
+  player.mineSlowStartedAt = 0;
+  player.mineSlowUntil = 0;
+  player.mineSlowDurationMs = 0;
 }
 
 function maintainBotPopulation() {
-  const targetBotCount = 10;
+  const targetBotCount = fixed('botCount');
   let bots = [...players.values()].filter((player) => player.isBot);
   while (bots.length > targetBotCount) {
     players.delete(bots.pop().id);
@@ -240,6 +235,7 @@ function maintainBotPopulation() {
 }
 
 function getPlayerSnapshot(player, now) {
+  syncWeaponPhase(player, now);
   const stats = levelStats(player.level);
   const rocketReloadRemaining = Math.max(0, player.rocketReloadAt - now);
   const mineReloadRemaining = Math.max(0, player.mineReloadAt - now);
@@ -253,7 +249,7 @@ function getPlayerSnapshot(player, now) {
     y: player.y,
     angle: player.angle,
     speed: player.speed,
-    speedKmh: getSpeedKmh(player, stats),
+    speedKmh: getSpeedKmh(player),
     hp: player.hp,
     maxHp: stats.maxHp,
     level: player.level,
@@ -264,9 +260,9 @@ function getPlayerSnapshot(player, now) {
     respawnRemainingMs: Math.max(0, player.respawnAt - now),
     attackedAt: player.lastAttackedAt,
     xp: player.xp,
-    xpForNextLevel: player.level >= MAX_LEVEL ? 0 : Math.max(1, player.level) * 100,
-    minSpeed: stats.minSpeed,
-    maxSpeed: stats.maxSpeed,
+    xpForNextLevel: player.level >= MAX_LEVEL ? 0 : stats.xpToNextLevel,
+    cameraScale: stats.cameraScale,
+    planeTier: Math.ceil(Math.min(MAX_LEVEL, player.level) / fixed('levelsPerPlaneTier')),
     minSpeedKmh: stats.minSpeedKmh,
     maxSpeedKmh: stats.maxSpeedKmh,
     fastActiveRemainingMs: Math.max(0, player.fastBoostUntil - now),
@@ -276,7 +272,7 @@ function getPlayerSnapshot(player, now) {
     rocketAmmo: player.rocketAmmo,
     rocketCapacity: stats.rocketCapacity,
     rocketPhase: player.rocketPhase,
-    rocketPhaseRemaining: Math.max(0, (player.rocketPhase === 'preparing' ? player.rocketLaunchAt : player.rocketReadyAt) - now),
+    rocketPhaseRemaining: Math.max(0, player.rocketPhase === 'charging' ? rocketReloadRemaining : player.rocketReadyAt - now),
     rocketPrepareMs: stats.rocketPrepareMs,
     rocketChargeMs: stats.rocketChargeMs,
     rocketRechargeRemainingMs: rocketReloadRemaining,
@@ -286,7 +282,7 @@ function getPlayerSnapshot(player, now) {
     mineAmmo: player.mineAmmo,
     mineCapacity: stats.mineCapacity,
     minePhase: player.minePhase,
-    minePhaseRemaining: Math.max(0, (player.minePhase === 'preparing' ? player.mineArmAt : player.mineReadyAt) - now),
+    minePhaseRemaining: Math.max(0, player.minePhase === 'charging' ? mineReloadRemaining : player.mineReadyAt - now),
     minePrepareMs: stats.minePrepareMs,
     mineChargeMs: stats.mineChargeMs,
     mineRechargeRemainingMs: mineReloadRemaining,
@@ -310,14 +306,16 @@ function broadcastSnapshot() {
 }
 
 function totalExperience(player) {
-  return (50 * (player.level - 1) * player.level) + player.xp;
+  let total = player.xp;
+  for (let level = 1; level < player.level; level += 1) total += levelStats(level).xpToNextLevel;
+  return total;
 }
 
 function applyTotalExperience(player, amount) {
   let remaining = Math.max(0, Math.floor(amount));
   player.level = 1;
-  while (player.level < MAX_LEVEL && remaining >= player.level * 100) {
-    remaining -= player.level * 100;
+  while (player.level < MAX_LEVEL && remaining >= levelStats(player.level).xpToNextLevel) {
+    remaining -= levelStats(player.level).xpToNextLevel;
     player.level += 1;
   }
   player.xp = remaining;
@@ -326,14 +324,14 @@ function applyTotalExperience(player, amount) {
 function addExperience(player, amount) {
   if (player.level >= MAX_LEVEL) return;
   player.xp += amount;
-  while (player.level < MAX_LEVEL && player.xp >= Math.max(1, player.level) * 100) {
-    player.xp -= Math.max(1, player.level) * 100;
+  while (player.level < MAX_LEVEL && player.xp >= levelStats(player.level).xpToNextLevel) {
+    player.xp -= levelStats(player.level).xpToNextLevel;
     player.level += 1;
     const stats = levelStats(player.level);
-    player.hp = Math.min(stats.maxHp, player.hp + 20);
+    player.hp = Math.min(stats.maxHp, player.hp + stats.levelUpHeal);
     player.rocketAmmo = Math.min(stats.rocketCapacity, player.rocketAmmo + 1);
     player.mineAmmo = Math.min(stats.mineCapacity, player.mineAmmo + 1);
-    player.speed = Math.max(stats.minSpeed, Math.min(stats.maxSpeed, player.speed));
+    player.speed = Math.max(stats.minSpeedKmh, Math.min(stats.maxSpeedKmh, player.speed));
   }
 }
 
@@ -348,17 +346,17 @@ function damagePlayer(victim, damage, ownerId) {
     if (victim.hp === 0 && previousHp > 0) {
       const levelDifference = victimLevel - attacker.level;
       attacker.kills += 1;
-      attacker.score += Math.max(10, 100 + levelDifference * 15);
-      addExperience(attacker, Math.max(10, 34 + levelDifference * 8));
+      attacker.score += Math.max(fixed('minKillScore'), fixed('killScoreBase') + levelDifference * fixed('killScorePerLevelGap'));
+      addExperience(attacker, Math.max(fixed('minKillXp'), fixed('killXpBase') + levelDifference * fixed('killXpPerLevelGap')));
     } else if (victim.hp > 0) {
-      addExperience(attacker, Math.max(1, Math.floor(damage * 0.05)));
+      addExperience(attacker, Math.max(fixed('minHitXp'), Math.floor(damage * fixed('hitXpDamageRatio'))));
     }
   }
   if (victim.hp === 0) {
-    victim.respawnExperience = Math.floor(totalExperience(victim) * 0.3);
+    victim.respawnExperience = Math.floor(totalExperience(victim) * fixed('respawnXpKeepRatio'));
     victim.level = 1;
     victim.xp = 0;
-    victim.respawnAt = Date.now() + 5000;
+    victim.respawnAt = Date.now() + fixed('respawnDelayMs');
     victim.input = {};
   }
 }
@@ -367,22 +365,23 @@ function spawnBlast(x, y, now, scale = 0.8) {
   blasts.push({ id: `blast-${now}-${Math.random().toString(36).slice(2, 8)}`, x, y, startedAt: now, frame: 0, scale });
 }
 
-function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDamageEnabled, directHitId = null, healShooter = false) {
+function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDamageEnabled, directHitId = null, healShooter = false, slowDurationMs = 0) {
   for (const player of players.values()) {
     if (player.id === ownerId || player.hp <= 0) continue;
     const distance = Math.hypot(player.x - x, player.y - y);
     if (distance > radius) continue;
     const sameTeam = Boolean(ownerTeamId) && getEffectiveTeamId(player) === ownerTeamId;
     if (sameTeam && !teamDamageEnabled) continue;
-    const damage = player.id === directHitId ? baseDamage : baseDamage * Math.max(0.12, 1 - distance / radius);
+    const damage = player.id === directHitId ? baseDamage : baseDamage * Math.max(fixed('blastFalloffMin'), 1 - distance / radius);
     const previousHp = player.hp;
     const victimMaxHp = levelStats(player.level).maxHp;
-    damagePlayer(player, sameTeam ? damage * 0.5 : damage, ownerId);
+    damagePlayer(player, sameTeam ? damage * fixed('teamBlastDamageMultiplier') : damage, ownerId);
     const actualDamage = previousHp - player.hp;
+    if (slowDurationMs > 0 && actualDamage > 0 && player.hp > 0) applyMineSlow(player, Date.now(), slowDurationMs);
     const shooter = healShooter && actualDamage > 0 ? players.get(ownerId) : null;
     if (shooter && shooter.hp > 0) {
       const killed = previousHp > 0 && player.hp === 0;
-      const healing = actualDamage * 0.1 + (killed ? victimMaxHp * 0.1 : 0);
+      const healing = actualDamage * fixed('hitHealRatio') + (killed ? victimMaxHp * fixed('killHealMaxHpRatio') : 0);
       shooter.hp = Math.min(levelStats(shooter.level).maxHp, shooter.hp + healing);
     }
   }
@@ -400,7 +399,7 @@ function pointToSegmentDistance(pointX, pointY, startX, startY, endX, endY) {
 
 function launchMineMissile(mine, target, now) {
   const angle = (Math.atan2(target.x - mine.x, -(target.y - mine.y)) * 180) / Math.PI;
-  const maxSpeed = 310 * (mine.ownerIsBot ? 0.7 : 1);
+  const maxSpeed = fixed('mineMissileMaxSpeed') * (mine.ownerIsBot ? fixed('botSpeedMultiplier') : 1);
   rockets.push({
     id: `mine-missile-${now}-${Math.random().toString(36).slice(2, 8)}`,
     ownerId: mine.ownerId,
@@ -410,22 +409,23 @@ function launchMineMissile(mine, target, now) {
     trackingTargetId: target.id,
     mineLaunched: true,
     launchAngle: angle,
-    trackingCone: 180,
-    trackingRange: 1000,
-    turnRate: 150,
+    trackingCone: fixed('mineMissileConeDeg'),
+    trackingRange: fixed('mineMissileTrackingRange'),
+    turnRate: fixed('mineMissileTurnRate'),
     x: mine.x,
     y: mine.y,
     angle,
     variant: mine.variant,
-    range: 1000,
+    range: fixed('mineMissileRange'),
     initialSpeed: Math.min(maxSpeed, mine.initialSpeed),
     maxSpeed,
     distance: 0,
     launchAt: now,
     active: true,
     damage: mine.damage,
+    slowDurationMs: mine.slowDurationMs || 0,
     bornAt: now,
-    expiresAt: now + 4000,
+    expiresAt: now + fixed('mineMissileLifetimeMs'),
   });
 }
 
@@ -439,23 +439,28 @@ function queueBotInput(player, input, now) {
   if (Object.keys(desired).every((key) => desired[key] === Boolean(player.botDesiredInput?.[key]))) return;
   player.botDesiredInput = desired;
   player.botActionQueue = (player.botActionQueue ?? []).filter((action) => action.type !== 'input');
-  player.botActionQueue.push({ type: 'input', input: desired, executeAt: now + 300 });
+  player.botActionQueue.push({ type: 'input', input: desired, executeAt: now + fixed('botReactionMs') });
 }
 
 function queueBotAction(player, type, now) {
   if ((player.botActionQueue ?? []).some((action) => action.type === type)) return;
   player.botActionQueue ??= [];
-  player.botActionQueue.push({ type, executeAt: now + 300 });
+  player.botActionQueue.push({ type, executeAt: now + fixed('botReactionMs') });
 }
 
 function queueBotAim(player, angle, now) {
   if ((player.botActionQueue ?? []).some((action) => action.type === 'aim')) return;
   player.botActionQueue ??= [];
-  player.botActionQueue.push({ type: 'aim', angle, executeAt: now + 300 });
+  player.botActionQueue.push({ type: 'aim', angle, executeAt: now + fixed('botReactionMs') });
 }
 
 function shortestAngleDelta(from, to) {
   return ((to - from + 540) % 360) - 180;
+}
+
+function syncWeaponPhase(player, now) {
+  player.rocketPhase = player.rocketAmmo < 1 ? 'charging' : (now < player.rocketReadyAt ? 'preparing' : 'ready');
+  player.minePhase = player.mineAmmo < 1 ? 'charging' : (now < player.mineReadyAt ? 'preparing' : 'ready');
 }
 
 function fireRocket(player, now) {
@@ -466,12 +471,9 @@ function fireRocket(player, now) {
   player.rocketAmmo -= 1;
   player.rocketLaunchAt = launchAt;
   if (!player.rocketReloadAt) player.rocketReloadAt = launchAt + stats.rocketChargeMs;
-  player.rocketReadyAt = player.rocketAmmo > 0 ? launchAt : player.rocketReloadAt;
-  player.rocketPhase = player.rocketAmmo > 0 ? 'ready' : 'charging';
-  const levelProgress = Math.max(0, Math.min(1, (player.level - 1) / (MAX_LEVEL - 1)));
-  const planeSpeed = (getSpeedKmh(player, stats) * 2.5 / 3.6) * (player.isBot ? 0.7 : 1);
-  const trackingCone = 15 + levelProgress * 30;
-  const trackingRange = 68 * (6 + levelProgress * 6);
+  player.rocketReadyAt = launchAt + stats.rocketPrepareMs;
+  syncWeaponPhase(player, now);
+  const planeSpeed = planeWorldSpeed(player, stats);
   rockets.push({
     id: `rocket-${now}-${Math.random().toString(36).slice(2, 8)}`,
     ownerId: player.id,
@@ -480,22 +482,22 @@ function fireRocket(player, now) {
     teamDamageEnabled: player.teamDamageEnabled,
     trackingTargetId: null,
     launchAngle: player.angle,
-    trackingCone,
-    trackingRange,
-    turnRate: 5 + levelProgress * 10,
+    trackingCone: stats.rocketTrackingConeDeg,
+    trackingRange: stats.rocketTrackingRange,
+    turnRate: stats.rocketTurnRateDegPerSec,
     x: player.x,
     y: player.y,
     angle: player.angle,
-    variant: Math.ceil(Math.min(MAX_LEVEL, player.level) / 3),
+    variant: Math.ceil(Math.min(MAX_LEVEL, player.level) / fixed('levelsPerPlaneTier')),
     range: stats.rocketRange,
-    initialSpeed: planeSpeed * 1.3,
-    maxSpeed: 620 * (player.isBot ? 0.7 : 1),
+    initialSpeed: planeSpeed * fixed('rocketLaunchSpeedMultiplier'),
+    maxSpeed: fixed('rocketMaxSpeed') * (player.isBot ? fixed('botSpeedMultiplier') : 1),
     distance: 0,
     launchAt,
     active: true,
-    damage: stats.rocketDamage * (player.isBot ? 0.3 : 1),
+    damage: stats.rocketDamage * (player.isBot ? fixed('botDamageMultiplier') : 1),
     bornAt: launchAt,
-    expiresAt: launchAt + 8000,
+    expiresAt: launchAt + fixed('rocketLifetimeMs'),
   });
 }
 
@@ -520,8 +522,8 @@ function dropMine(player, now) {
   player.mineAmmo -= 1;
   player.mineArmAt = armAt;
   if (!player.mineReloadAt) player.mineReloadAt = armAt + stats.mineChargeMs;
-  player.mineReadyAt = player.mineAmmo > 0 ? armAt : player.mineReloadAt;
-  player.minePhase = player.mineAmmo > 0 ? 'ready' : 'charging';
+  player.mineReadyAt = armAt + stats.minePrepareMs;
+  syncWeaponPhase(player, now);
   mines.push({
     id: `mine-${now}-${Math.random().toString(36).slice(2, 8)}`,
     ownerId: player.id,
@@ -530,11 +532,12 @@ function dropMine(player, now) {
     ownerIsBot: player.isBot,
     x: player.x,
     y: player.y,
-    variant: Math.ceil(Math.min(MAX_LEVEL, player.level) / 3),
+    variant: Math.ceil(Math.min(MAX_LEVEL, player.level) / fixed('levelsPerPlaneTier')),
     armAt,
-    expiresAt: armAt + 20000,
-    damage: stats.mineDamage * (player.isBot ? 0.3 : 1),
-    initialSpeed: (getSpeedKmh(player, stats) * 2.5 / 3.6) * (player.isBot ? 0.7 : 1) * 1.3,
+    expiresAt: armAt + fixed('mineLifetimeMs'),
+    damage: stats.mineDamage * (player.isBot ? fixed('botDamageMultiplier') : 1),
+    slowDurationMs: stats.mineSlowMs,
+    initialSpeed: planeWorldSpeed(player, stats) * fixed('rocketLaunchSpeedMultiplier'),
     armed: true,
     visible: true,
   });
@@ -542,22 +545,19 @@ function dropMine(player, now) {
 
 function tick() {
   const now = Date.now();
-  const delta = Math.min((now - lastTickAt) / 1000, 0.1);
+  const delta = Math.min((now - lastTickAt) / 1000, fixed('maxDeltaSeconds'));
   lastTickAt = now;
 
   for (let index = blasts.length - 1; index >= 0; index -= 1) {
     const blast = blasts[index];
-    blast.frame = Math.min(11, Math.floor((now - blast.startedAt) / 55));
-    if (now - blast.startedAt >= 660) blasts.splice(index, 1);
+    blast.frame = Math.min(fixed('blastFrameCount') - 1, Math.floor((now - blast.startedAt) / fixed('blastFrameMs')));
+    if (now - blast.startedAt >= fixed('blastDurationMs')) blasts.splice(index, 1);
   }
 
   for (const player of players.values()) {
     const stats = levelStats(player.level);
     if (player.hp > 0) player.hp = Math.min(stats.maxHp, player.hp + stats.treatmentPerSecond * delta);
-    if (player.rocketPhase === 'preparing' && now >= player.rocketLaunchAt) player.rocketPhase = 'charging';
-    if (player.rocketPhase === 'charging' && now >= player.rocketReadyAt) player.rocketPhase = 'ready';
-    if (player.minePhase === 'preparing' && now >= player.mineArmAt) player.minePhase = 'charging';
-    if (player.minePhase === 'charging' && now >= player.mineReadyAt) player.minePhase = 'ready';
+    syncWeaponPhase(player, now);
     if (player.respawnAt && player.respawnAt <= now) {
       respawnPlayer(player);
       continue;
@@ -582,24 +582,24 @@ function tick() {
       if (player.botTargetId && (!target || target.id === player.id || target.hp <= 0 || !canTargetPlayer(target) || now >= player.botTargetExpiresAt)) {
         player.botTargetId = null;
         player.botTargetExpiresAt = 0;
-        player.botNextTargetAt = now + 4000;
+        player.botNextTargetAt = now + fixed('botRetargetMs');
         target = null;
       }
       if (!target && now >= player.botNextTargetAt) {
         const nearbyBots = [...players.values()].filter((candidate) => {
-          return candidate.isBot && candidate.id !== player.id && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= 1800;
+          return candidate.isBot && candidate.id !== player.id && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
         });
         const nearbyHumans = [...players.values()].filter((candidate) => {
-          return !candidate.isBot && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= 1800;
+          return !candidate.isBot && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
         });
-        const chooseHuman = nearbyHumans.length > 0 && (nearbyBots.length === 0 || Math.random() < 0.5);
+        const chooseHuman = nearbyHumans.length > 0 && (nearbyBots.length === 0 || Math.random() < fixed('botPreferHumanChance'));
         const candidates = chooseHuman ? nearbyHumans : nearbyBots.length ? nearbyBots : nearbyHumans;
         if (candidates.length) {
           target = candidates[Math.floor(Math.random() * candidates.length)];
           player.botTargetId = target.id;
-          player.botTargetExpiresAt = now + 10000;
+          player.botTargetExpiresAt = now + fixed('botLockMs');
         } else {
-          player.botNextTargetAt = now + 4000;
+          player.botNextTargetAt = now + fixed('botRetargetMs');
         }
       }
 
@@ -608,8 +608,8 @@ function tick() {
         const dy = target.y - player.y;
         const distance = Math.hypot(dx, dy);
         const targetStats = levelStats(target.level);
-        const targetWorldSpeed = (getSpeedKmh(target, targetStats) * 2.5 / 3.6) * (target.isBot ? 0.7 : 1);
-        const rocketWorldSpeed = 620 * 0.7;
+        const targetWorldSpeed = planeWorldSpeed(target, targetStats);
+        const rocketWorldSpeed = fixed('rocketMaxSpeed') * fixed('botSpeedMultiplier');
         const leadTime = distance / rocketWorldSpeed;
         const targetDirection = (target.angle * Math.PI) / 180;
         const aimX = target.x + Math.sin(targetDirection) * targetWorldSpeed * leadTime;
@@ -617,74 +617,70 @@ function tick() {
         const targetAngle = (Math.atan2(aimX - player.x, -(aimY - player.y)) * 180) / Math.PI;
         const turn = ((targetAngle - player.angle + 540) % 360) - 180;
         queueBotAim(player, targetAngle, now);
-        queueBotInput(player, { left: false, right: false, 'speed-up': distance > 280, 'speed-down': distance < 150 }, now);
-        if (distance <= stats.rocketRange * 0.95 && Math.abs(turn) < 10 && now >= player.botFireAt && player.rocketAmmo > 0) {
+        queueBotInput(player, { left: false, right: false, 'speed-up': distance > fixed('botSpeedUpDistance'), 'speed-down': distance < fixed('botSpeedDownDistance') }, now);
+        if (distance <= stats.rocketRange * fixed('botRocketRangeFraction') && Math.abs(turn) < fixed('botAimToleranceDeg') && now >= player.botFireAt && player.rocketAmmo > 0) {
           queueBotAction(player, 'rocket', now);
-          player.botFireAt = now + 2400 + Math.random() * 1600;
+          player.botFireAt = now + fixed('botRocketCooldownMs') + Math.random() * fixed('botRocketCooldownRandomMs');
         }
         const facingX = Math.sin((player.angle * Math.PI) / 180);
         const facingY = -Math.cos((player.angle * Math.PI) / 180);
-        const targetBehind = (dx * facingX + dy * facingY) < -distance * 0.25;
+        const targetBehind = (dx * facingX + dy * facingY) < -distance * fixed('botMineBehindFraction');
         const canDamageTarget = !(getEffectiveTeamId(player) && getEffectiveTeamId(player) === getEffectiveTeamId(target) && !player.teamDamageEnabled);
-        if (targetBehind && distance <= 150 && canDamageTarget && player.mineAmmo > 0 && now >= player.mineReadyAt && now >= (player.botMineAt ?? 0)) {
+        if (targetBehind && distance <= fixed('botMineDistance') && canDamageTarget && player.mineAmmo > 0 && now >= player.mineReadyAt && now >= (player.botMineAt ?? 0)) {
           queueBotAction(player, 'mine', now);
-          player.botMineAt = now + 1800 + Math.random() * 900;
+          player.botMineAt = now + fixed('botMineCooldownMs') + Math.random() * fixed('botMineCooldownRandomMs');
         }
       } else if (now >= player.nextBotDecisionAt) {
         const freeFlightTurn = Math.random();
+        const wanderLeft = fixed('botWanderLeftChance');
         queueBotInput(player, {
-          left: freeFlightTurn < 0.22,
-          right: freeFlightTurn >= 0.22 && freeFlightTurn < 0.44,
-          'speed-up': Math.random() < 0.3,
-          'speed-down': Math.random() < 0.18,
+          left: freeFlightTurn < wanderLeft,
+          right: freeFlightTurn >= wanderLeft && freeFlightTurn < wanderLeft + fixed('botWanderRightChance'),
+          'speed-up': Math.random() < fixed('botWanderSpeedUpChance'),
+          'speed-down': Math.random() < fixed('botWanderSpeedDownChance'),
         }, now);
-        player.nextBotDecisionAt = now + 650 + Math.random() * 1350;
+        player.nextBotDecisionAt = now + fixed('botWanderMinMs') + Math.random() * fixed('botWanderRandomMs');
       }
       if (!target) queueBotAim(player, null, now);
     }
 
     if (player.isBot && player.botAimTargetAngle !== null) {
       const aimTurn = shortestAngleDelta(player.angle, player.botAimTargetAngle);
-      const aimStep = 115 * delta;
+      const aimStep = stats.turnRateDegPerSec * delta;
       player.angle += Math.max(-aimStep, Math.min(aimStep, aimTurn));
     }
     const yawInput = Number.isFinite(player.input.yaw) ? Math.max(-1, Math.min(1, player.input.yaw)) : Number(Boolean(player.input.right)) - Number(Boolean(player.input.left));
-    player.angle += 115 * yawInput * delta;
+    player.angle += stats.turnRateDegPerSec * yawInput * delta;
     player.angle = ((player.angle % 360) + 360) % 360;
-    const speedRange = stats.maxSpeed - stats.minSpeed;
-    const displayedSpeedRange = Math.max(1, stats.maxSpeedKmh - stats.minSpeedKmh);
-    const speedChange = speedRange * (stats.speedAccelerationKmhPerSec / displayedSpeedRange) * delta;
+    const speedChange = stats.speedAccelerationKmhPerSec * delta;
     if (now < player.fastBoostUntil) {
-      const boostedSpeedKmh = Math.min(stats.maxSpeedKmh * 2, getSpeedKmh(player, stats) + 150 * delta);
-      player.speed = speedUnitsForKmh(boostedSpeedKmh, stats);
+      player.speed = Math.min(stats.maxSpeedKmh * fixed('fastTopSpeedMultiplier'), player.speed + fixed('fastBoostKmhPerSec') * delta);
     }
     else if (player.fastOriginalSpeed !== null) {
-      const currentSpeedKmh = getSpeedKmh(player, stats);
-      const originSpeedKmh = getSpeedKmh({ ...player, speed: player.fastOriginalSpeed }, stats);
-      const recoveryStep = 250 * delta;
-      const recoveryDistance = currentSpeedKmh - originSpeedKmh;
+      const recoveryStep = fixed('fastRecoveryKmhPerSec') * delta;
+      const recoveryDistance = player.speed - player.fastOriginalSpeed;
       if (Math.abs(recoveryDistance) <= recoveryStep) {
         player.speed = player.fastOriginalSpeed;
         player.fastOriginalSpeed = null;
       } else {
-        player.speed = speedUnitsForKmh(currentSpeedKmh - Math.sign(recoveryDistance) * recoveryStep, stats);
+        player.speed -= Math.sign(recoveryDistance) * recoveryStep;
       }
-    } else if (player.speed > stats.maxSpeed) player.speed = Math.max(stats.maxSpeed, player.speed - speedChange * 3);
+    } else if (player.speed > stats.maxSpeedKmh) player.speed = Math.max(stats.maxSpeedKmh, player.speed - speedChange * fixed('overspeedBrakeMultiplier'));
     else {
       const throttleInput = Number.isFinite(player.input.throttle) ? Math.max(-1, Math.min(1, player.input.throttle)) : Number(Boolean(player.input['speed-up'])) - Number(Boolean(player.input['speed-down']));
-      if (throttleInput > 0) player.speed = Math.min(stats.maxSpeed, player.speed + speedChange * throttleInput);
-      if (throttleInput < 0) player.speed = Math.max(stats.minSpeed, player.speed + speedChange * throttleInput);
+      if (throttleInput > 0) player.speed = Math.min(stats.maxSpeedKmh, player.speed + speedChange * throttleInput);
+      if (throttleInput < 0) player.speed = Math.max(stats.minSpeedKmh, player.speed + speedChange * throttleInput);
     }
     const angle = (player.angle * Math.PI) / 180;
     // Map coordinates are pixels, so aircraft cover more than one pixel per
     // real-world meter to keep the displayed airspeed responsive in the world.
-    const worldSpeed = (getSpeedKmh(player, stats) * 2.5 / 3.6) * (player.isBot ? 0.7 : 1);
+    const worldSpeed = planeWorldSpeed(player, stats);
     player.x += Math.sin(angle) * worldSpeed * delta;
     player.y -= Math.cos(angle) * worldSpeed * delta;
 
     const outsidePlayground = player.x < 0 || player.y < 0 || player.x > world.width || player.y > world.height;
     if (outsidePlayground) {
-      damagePlayer(player, stats.maxHp * 0.2 * delta, null);
+      damagePlayer(player, stats.maxHp * stats.outOfMapHpFractionPerSecond * delta, null);
       if (player.hp <= 0) continue;
     }
 
@@ -709,8 +705,8 @@ function tick() {
       const owner = players.get(rocket.ownerId);
       if (owner) {
         const angle = (owner.angle * Math.PI) / 180;
-        rocket.x = owner.x + Math.sin(angle) * 57;
-        rocket.y = owner.y - Math.cos(angle) * 57;
+        rocket.x = owner.x + Math.sin(angle) * fixed('rocketMuzzleOffset');
+        rocket.y = owner.y - Math.cos(angle) * fixed('rocketMuzzleOffset');
         rocket.angle = owner.angle;
       }
       rocket.active = true;
@@ -747,8 +743,8 @@ function tick() {
     const previousX = rocket.x;
     const previousY = rocket.y;
     const angle = (rocket.angle * Math.PI) / 180;
-    const accelerationProgress = Math.max(0, Math.min(1, (now - rocket.launchAt) / 800));
-    const maxSpeed = rocket.maxSpeed ?? (rocket.mineLaunched ? 310 : 620);
+    const accelerationProgress = Math.max(0, Math.min(1, (now - rocket.launchAt) / fixed('rocketRampMs')));
+    const maxSpeed = rocket.maxSpeed ?? (rocket.mineLaunched ? fixed('mineMissileMaxSpeed') : fixed('rocketMaxSpeed'));
     const initialSpeed = rocket.initialSpeed ?? 0;
     const travel = (initialSpeed + (maxSpeed - initialSpeed) * accelerationProgress) * delta;
     rocket.distance += travel;
@@ -759,14 +755,14 @@ function tick() {
     let impact = null;
     for (const player of players.values()) {
       if (player.id === rocket.ownerId || player.hp <= 0) continue;
-      const collisionRadius = (player.isBot ? 34 : 42) + 15;
+      const collisionRadius = (player.isBot ? fixed('botHitRadius') : fixed('playerHitRadius')) + fixed('hitRadiusPadding');
       const contact = pointToSegmentDistance(player.x, player.y, previousX, previousY, rocket.x, rocket.y);
       if (contact.distance <= collisionRadius && (!impact || contact.distance < impact.distance)) impact = { ...contact, playerId: player.id };
     }
     if (impact) {
-      const blastRadius = rocket.mineLaunched ? 110 : 180;
-      applyBlastDamage(impact.x, impact.y, blastRadius, rocket.damage, rocket.ownerId, rocket.ownerTeamId, rocket.teamDamageEnabled, impact.playerId, true);
-      spawnBlast(impact.x, impact.y, now, rocket.mineLaunched ? 0.58 : 0.8);
+      const blastRadius = rocket.mineLaunched ? fixed('mineMissileBlastRadius') : fixed('rocketBlastRadius');
+      applyBlastDamage(impact.x, impact.y, blastRadius, rocket.damage, rocket.ownerId, rocket.ownerTeamId, rocket.teamDamageEnabled, impact.playerId, true, rocket.mineLaunched ? (rocket.slowDurationMs || 0) : 0);
+      spawnBlast(impact.x, impact.y, now, rocket.mineLaunched ? fixed('mineMissileBlastScale') : fixed('rocketBlastScale'));
       hit = true;
     }
     if (hit || rocket.distance >= rocket.range || now > rocket.expiresAt) rockets.splice(index, 1);
@@ -787,14 +783,14 @@ function tick() {
       const relativeContact = pointToSegmentDistance(0, 0,
         firstPath.startX - secondPath.startX, firstPath.startY - secondPath.startY,
         firstPath.endX - secondPath.endX, firstPath.endY - secondPath.endY);
-      if (relativeContact.distance <= 24) {
+      if (relativeContact.distance <= fixed('rocketClashDistance')) {
         const firstX = firstPath.startX + (firstPath.endX - firstPath.startX) * relativeContact.progress;
         const firstY = firstPath.startY + (firstPath.endY - firstPath.startY) * relativeContact.progress;
         const secondX = secondPath.startX + (secondPath.endX - secondPath.startX) * relativeContact.progress;
         const secondY = secondPath.startY + (secondPath.endY - secondPath.startY) * relativeContact.progress;
         destroyedRocketIds.add(firstRocket.id);
         destroyedRocketIds.add(secondRocket.id);
-        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, 0.42);
+        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, fixed('rocketClashBlastScale'));
       }
     }
   }
@@ -816,7 +812,7 @@ function tick() {
         .map((player) => ({ player, distance: Math.hypot(player.x - mine.x, player.y - mine.y) }))
         .filter(({ player, distance }) => {
           const sameTeam = Boolean(mine.ownerTeamId) && getEffectiveTeamId(player) === mine.ownerTeamId;
-          return distance <= (player.isBot ? 68 : 84) * 1.3 && (!sameTeam || mine.teamDamageEnabled);
+          return distance <= (player.isBot ? fixed('botMineTriggerRadius') : fixed('playerMineTriggerRadius')) * fixed('mineTriggerScale') && (!sameTeam || mine.teamDamageEnabled);
         })
         .sort((a, b) => a.distance - b.distance)[0]?.player;
       if (target) {
@@ -826,19 +822,19 @@ function tick() {
       }
     }
     if (now >= mine.expiresAt) {
-      applyBlastDamage(mine.x, mine.y, 72, mine.damage * 0.35, mine.ownerId, mine.ownerTeamId, mine.teamDamageEnabled);
-      spawnBlast(mine.x, mine.y, now, 0.42);
+      applyBlastDamage(mine.x, mine.y, fixed('mineExpireRadius'), mine.damage * fixed('mineExpireDamageRatio'), mine.ownerId, mine.ownerTeamId, mine.teamDamageEnabled, null, false, mine.slowDurationMs || 0);
+      spawnBlast(mine.x, mine.y, now, fixed('mineExpireBlastScale'));
       mines.splice(index, 1);
     }
   }
 
-  if (now - lastBroadcastAt >= 50) {
+  if (now - lastBroadcastAt >= fixed('broadcastMs')) {
     lastBroadcastAt = now;
     broadcastSnapshot();
   }
 }
 
-setInterval(tick, 50);
+setInterval(tick, fixed('tickMs'));
 
 server.on('listening', () => {
   console.log(`WebSocket server listening at ws://localhost:${port}`);
@@ -857,8 +853,8 @@ server.on('connection', (socket) => {
         socket.playerId = message.id;
         if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name));
         const joinedPlayer = players.get(socket.playerId);
-        joinedPlayer.name = String(message.name || 'Pilot').slice(0, 24);
-        const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 24) : '';
+        joinedPlayer.name = String(message.name || 'Pilot').slice(0, fixed('nameMaxLength'));
+        const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, fixed('nameMaxLength')) : '';
         joinedPlayer.teamId = teamCode ? `team:${teamCode}` : null;
         joinedPlayer.teamDamageEnabled = Boolean(message.teamDamageEnabled);
         maintainBotPopulation();

@@ -1,0 +1,578 @@
+{
+  "comment": "All gameplay constants. Restart the server after you edit this file. In \"level\", set the level 1 value and the level 15 value. Every level in between is a straight line between those two numbers. Whole numbers are rounded to the nearest integer. Add \"round\": \"none\" on a stat to keep decimals. \"fixed\" values do not change with level.",
+  "maxLevel": 15,
+  "level": {
+    "minSpeedKmh": {
+      "comment": "Slowest airspeed, in km/h. This is both the HUD number and the speed used to move the plane.",
+      "level1": 150,
+      "level15": 325
+    },
+    "maxSpeedKmh": {
+      "comment": "Fastest airspeed at full throttle, in km/h. This is both the HUD number and the speed used to move the plane.",
+      "level1": 206,
+      "level15": 577
+    },
+    "speedAccelerationKmhPerSec": {
+      "comment": "How fast the HUD airspeed climbs or falls while you hold speed up or speed down, in km/h per second.",
+      "level1": 36,
+      "level15": 36
+    },
+    "turnRateDegPerSec": {
+      "comment": "How fast the plane turns, in degrees per second.",
+      "level1": 115,
+      "level15": 115
+    },
+    "cameraScale": {
+      "comment": "How far the view zooms out. 1 is the closest view at level 1. Smaller numbers show more of the map. Level 15 is 0.5, which shows twice the width and height.",
+      "level1": 1,
+      "level15": 0.5
+    },
+    "maxHp": {
+      "comment": "Maximum health.",
+      "level1": 100,
+      "level15": 240
+    },
+    "treatmentPerSecond": {
+      "comment": "Health restored every second while alive.",
+      "level1": 1,
+      "level15": 3,
+      "round": "none"
+    },
+    "levelUpHeal": {
+      "comment": "Health restored once, at the moment you gain a level.",
+      "level1": 20,
+      "level15": 20
+    },
+    "outOfMapHpFractionPerSecond": {
+      "comment": "Fraction of max health lost every second while flying outside the map. 0.2 means 20% of max health per second.",
+      "level1": 0.2,
+      "level15": 0.2
+    },
+    "xpToNextLevel": {
+      "comment": "Experience required to reach the next level. 100 at level 1 and 1500 at level 15 keeps the old curve, where the cost is level times 100.",
+      "level1": 100,
+      "level15": 1500
+    },
+    "rocketCapacity": {
+      "comment": "How many rockets you can hold.",
+      "level1": 3,
+      "level15": 10
+    },
+    "rocketDamage": {
+      "comment": "Damage of a direct rocket hit before blast falloff. Bots multiply this by botDamageMultiplier.",
+      "level1": 20,
+      "level15": 60
+    },
+    "rocketRange": {
+      "comment": "How far a rocket flies before it disappears, in world pixels.",
+      "level1": 900,
+      "level15": 4400
+    },
+    "rocketPrepareMs": {
+      "comment": "Wait after a launch before the next rocket can fire. This blocks the button even when ammo remains. It is separate from rocketChargeMs, which only refills ammo.",
+      "level1": 1000,
+      "level15": 300
+    },
+    "rocketChargeMs": {
+      "comment": "Milliseconds to reload one rocket after you spend ammo.",
+      "level1": 2300,
+      "level15": 1200
+    },
+    "rocketTrackingConeDeg": {
+      "comment": "Homing cone in front of a rocket, in degrees. A target outside this angle is ignored.",
+      "level1": 15,
+      "level15": 45
+    },
+    "rocketTrackingRange": {
+      "comment": "How far a rocket can see a target to home in, in world pixels.",
+      "level1": 408,
+      "level15": 816
+    },
+    "rocketTurnRateDegPerSec": {
+      "comment": "How fast a homing rocket can turn, in degrees per second.",
+      "level1": 5,
+      "level15": 15
+    },
+    "mineCapacity": {
+      "comment": "How many mines you can hold.",
+      "level1": 2,
+      "level15": 7
+    },
+    "mineDamage": {
+      "comment": "Damage of a mine hit before blast falloff. Bots multiply this by botDamageMultiplier.",
+      "level1": 10,
+      "level15": 30
+    },
+    "mineSlowMs": {
+      "comment": "How long a mine slows a hit plane. Speed eases down to half, stays there, then eases back up. Level 1 is 2 seconds. Level 15 is 4 seconds. Rockets do not slow planes.",
+      "level1": 2000,
+      "level15": 4000
+    },
+    "minePrepareMs": {
+      "comment": "Wait after a drop before the next mine can drop. This blocks the button even when ammo remains. It is separate from mineChargeMs, which only refills ammo.",
+      "level1": 2000,
+      "level15": 600
+    },
+    "mineChargeMs": {
+      "comment": "Milliseconds to reload one mine after you spend ammo.",
+      "level1": 5000,
+      "level15": 3200
+    },
+    "fastDurationMs": {
+      "comment": "How long the speed boost lasts, in milliseconds.",
+      "level1": 3000,
+      "level15": 5000
+    },
+    "fastCooldownMs": {
+      "comment": "How long you wait before the speed boost can be used again, in milliseconds. The wait starts when the boost starts.",
+      "level1": 10000,
+      "level15": 5000
+    }
+  },
+  "fixed": {
+    "worldSpeedScale": {
+      "comment": "Turns real km/h into map pixels. World speed is km/h times this number, divided by kmhToMetersPerSecond. Raise it to cross the map faster without changing the HUD speed.",
+      "value": 2.5
+    },
+    "kmhToMetersPerSecond": {
+      "comment": "Unit conversion from km/h to meters per second. Leave at 3.6 unless you want to rescale every speed at once.",
+      "value": 3.6
+    },
+    "botSpeedMultiplier": {
+      "comment": "Bots move and launch weapons at this fraction of a human plane's speed.",
+      "value": 0.7
+    },
+    "botDamageMultiplier": {
+      "comment": "Bots deal this fraction of rocket and mine damage.",
+      "value": 0.3
+    },
+    "fastTopSpeedMultiplier": {
+      "comment": "During a boost, top speed is maxSpeedKmh times this number.",
+      "value": 2
+    },
+    "fastBoostKmhPerSec": {
+      "comment": "How fast the boost adds km/h while it is active.",
+      "value": 150
+    },
+    "fastRecoveryKmhPerSec": {
+      "comment": "How fast km/h falls back to normal after a boost ends.",
+      "value": 250
+    },
+    "overspeedBrakeMultiplier": {
+      "comment": "If a level-up leaves you above your new top speed, you slow down this many times faster than normal acceleration.",
+      "value": 3
+    },
+    "rocketLaunchSpeedMultiplier": {
+      "comment": "A rocket starts at the plane's current world speed times this number, then speeds up to rocketMaxSpeed.",
+      "value": 1.3
+    },
+    "rocketMaxSpeed": {
+      "comment": "Top rocket speed in world pixels per second. Bots use this times botSpeedMultiplier.",
+      "value": 620
+    },
+    "rocketRampMs": {
+      "comment": "Milliseconds for a rocket to go from its launch speed to rocketMaxSpeed.",
+      "value": 800
+    },
+    "rocketLifetimeMs": {
+      "comment": "A rocket disappears after this many milliseconds even if it has range left.",
+      "value": 8000
+    },
+    "rocketMuzzleOffset": {
+      "comment": "How far in front of the plane a rocket appears when it becomes active, in world pixels.",
+      "value": 57
+    },
+    "rocketBlastRadius": {
+      "comment": "Rocket explosion radius in world pixels. Damage falls off toward the edge.",
+      "value": 180
+    },
+    "rocketBlastScale": {
+      "comment": "Visual size of a rocket explosion.",
+      "value": 0.8
+    },
+    "hitRadiusPadding": {
+      "comment": "Extra pixels added to a plane's body radius when a rocket checks for a hit.",
+      "value": 15
+    },
+    "playerHitRadius": {
+      "comment": "Human plane body radius for rocket hits, in world pixels.",
+      "value": 42
+    },
+    "botHitRadius": {
+      "comment": "Bot plane body radius for rocket hits, in world pixels.",
+      "value": 34
+    },
+    "rocketClashDistance": {
+      "comment": "Two enemy rockets destroy each other when their paths come this close, in world pixels.",
+      "value": 24
+    },
+    "rocketClashBlastScale": {
+      "comment": "Visual size when two rockets destroy each other.",
+      "value": 0.42
+    },
+    "mineLifetimeMs": {
+      "comment": "A mine explodes on its own after this many milliseconds.",
+      "value": 20000
+    },
+    "mineTriggerScale": {
+      "comment": "A mine launches when a plane comes within its trigger radius times this number.",
+      "value": 1.3
+    },
+    "playerMineTriggerRadius": {
+      "comment": "Base trigger radius around a human plane, in world pixels.",
+      "value": 84
+    },
+    "botMineTriggerRadius": {
+      "comment": "Base trigger radius around a bot plane, in world pixels.",
+      "value": 68
+    },
+    "mineExpireRadius": {
+      "comment": "Explosion radius when a mine times out, in world pixels.",
+      "value": 72
+    },
+    "mineExpireDamageRatio": {
+      "comment": "Timeout explosion damage is mine damage times this number.",
+      "value": 0.35
+    },
+    "mineExpireBlastScale": {
+      "comment": "Visual size of a mine timeout explosion.",
+      "value": 0.42
+    },
+    "mineMissileMaxSpeed": {
+      "comment": "Top speed of the missile a mine fires, in world pixels per second. Bots use this times botSpeedMultiplier.",
+      "value": 310
+    },
+    "mineMissileConeDeg": {
+      "comment": "Homing cone of a mine missile, in degrees.",
+      "value": 180
+    },
+    "mineMissileTrackingRange": {
+      "comment": "How far a mine missile can chase, in world pixels.",
+      "value": 1000
+    },
+    "mineMissileTurnRate": {
+      "comment": "How fast a mine missile turns, in degrees per second.",
+      "value": 150
+    },
+    "mineMissileRange": {
+      "comment": "How far a mine missile flies, in world pixels.",
+      "value": 1000
+    },
+    "mineMissileLifetimeMs": {
+      "comment": "A mine missile disappears after this many milliseconds.",
+      "value": 4000
+    },
+    "mineMissileBlastRadius": {
+      "comment": "Mine missile explosion radius, in world pixels.",
+      "value": 110
+    },
+    "mineMissileBlastScale": {
+      "comment": "Visual size of a mine missile explosion.",
+      "value": 0.58
+    },
+    "teamBlastDamageMultiplier": {
+      "comment": "Teammates take this fraction of blast damage when team damage is on.",
+      "value": 0.5
+    },
+    "blastFalloffMin": {
+      "comment": "Splash damage at the edge of a blast is at least this fraction of the direct hit. 0.12 means 12%.",
+      "value": 0.12
+    },
+    "hitHealRatio": {
+      "comment": "The shooter heals this fraction of the damage their blast actually dealt.",
+      "value": 0.1
+    },
+    "killHealMaxHpRatio": {
+      "comment": "Extra heal on a killing blast, as a fraction of the victim's max health.",
+      "value": 0.1
+    },
+    "minKillScore": {
+      "comment": "Lowest score granted for a kill.",
+      "value": 10
+    },
+    "killScoreBase": {
+      "comment": "Score for killing a plane of your own level, before the level-gap bonus.",
+      "value": 100
+    },
+    "killScorePerLevelGap": {
+      "comment": "Extra score per level the victim is above you. Negative when the victim is lower level. The total still cannot go below minKillScore.",
+      "value": 15
+    },
+    "minKillXp": {
+      "comment": "Lowest experience granted for a kill.",
+      "value": 10
+    },
+    "killXpBase": {
+      "comment": "Experience for killing a plane of your own level, before the level-gap bonus.",
+      "value": 34
+    },
+    "killXpPerLevelGap": {
+      "comment": "Extra experience per level the victim is above you. The total still cannot go below minKillXp.",
+      "value": 8
+    },
+    "minHitXp": {
+      "comment": "Lowest experience granted for a hit that does not kill.",
+      "value": 1
+    },
+    "hitXpDamageRatio": {
+      "comment": "Experience for a non-killing hit is damage times this number.",
+      "value": 0.05
+    },
+    "respawnXpKeepRatio": {
+      "comment": "Fraction of your total experience kept when you respawn. 0.1 means you keep 10%.",
+      "value": 0.1
+    },
+    "respawnDelayMs": {
+      "comment": "Milliseconds before a destroyed plane respawns.",
+      "value": 5000
+    },
+    "spawnInvulnerableMs": {
+      "comment": "Milliseconds after spawn when you cannot fire, drop mines, or take damage.",
+      "value": 3000
+    },
+    "levelsPerPlaneTier": {
+      "comment": "Plane, rocket, and mine artwork steps up every this many levels. 3 means levels 1-3 use tier 1, 4-6 use tier 2, up to tier 5.",
+      "value": 3
+    },
+    "nameMaxLength": {
+      "comment": "Maximum characters in a pilot name or team code.",
+      "value": 24
+    },
+    "botCount": {
+      "comment": "How many bots the server keeps in the world.",
+      "value": 10
+    },
+    "botSpawnWeights": {
+      "comment": "Chance weight for a new bot's level. The first number is level 1. Current weights are 40, 30, 20, 10 for levels 1 through 4.",
+      "value": [40, 30, 20, 10]
+    },
+    "botReactionMs": {
+      "comment": "Delay before a bot acts on a new decision, in milliseconds.",
+      "value": 300
+    },
+    "botSightRange": {
+      "comment": "How far a bot looks for a target, in world pixels.",
+      "value": 1800
+    },
+    "botPreferHumanChance": {
+      "comment": "When both humans and bots are in sight, chance the bot picks a human.",
+      "value": 0.5
+    },
+    "botLockMs": {
+      "comment": "How long a bot keeps the same target, in milliseconds.",
+      "value": 10000
+    },
+    "botRetargetMs": {
+      "comment": "How long a bot waits after losing a target before it searches again, in milliseconds.",
+      "value": 4000
+    },
+    "botRocketCooldownMs": {
+      "comment": "Minimum wait between bot rocket shots, in milliseconds.",
+      "value": 2400
+    },
+    "botRocketCooldownRandomMs": {
+      "comment": "Extra random wait added to the bot rocket cooldown, in milliseconds.",
+      "value": 1600
+    },
+    "botAimToleranceDeg": {
+      "comment": "A bot fires only when its nose is within this many degrees of the aim point.",
+      "value": 10
+    },
+    "botRocketRangeFraction": {
+      "comment": "A bot fires only inside this fraction of its rocket range.",
+      "value": 0.95
+    },
+    "botSpeedUpDistance": {
+      "comment": "A bot accelerates when the target is farther than this, in world pixels.",
+      "value": 280
+    },
+    "botSpeedDownDistance": {
+      "comment": "A bot slows down when the target is closer than this, in world pixels.",
+      "value": 150
+    },
+    "botMineDistance": {
+      "comment": "A bot drops a mine only when the target is behind it and closer than this, in world pixels.",
+      "value": 150
+    },
+    "botMineBehindFraction": {
+      "comment": "How far behind the bot's nose the target must be before a mine drop. 0.25 means a quarter of the distance behind the nose.",
+      "value": 0.25
+    },
+    "botMineCooldownMs": {
+      "comment": "Minimum wait between bot mine drops, in milliseconds.",
+      "value": 1800
+    },
+    "botMineCooldownRandomMs": {
+      "comment": "Extra random wait added to the bot mine cooldown, in milliseconds.",
+      "value": 900
+    },
+    "botWanderLeftChance": {
+      "comment": "Chance a wandering bot turns left on its next decision.",
+      "value": 0.22
+    },
+    "botWanderRightChance": {
+      "comment": "Chance a wandering bot turns right. It goes straight when the roll is above left plus right.",
+      "value": 0.22
+    },
+    "botWanderSpeedUpChance": {
+      "comment": "Chance a wandering bot accelerates.",
+      "value": 0.3
+    },
+    "botWanderSpeedDownChance": {
+      "comment": "Chance a wandering bot slows down.",
+      "value": 0.18
+    },
+    "botWanderMinMs": {
+      "comment": "Shortest time a bot keeps a wander decision, in milliseconds.",
+      "value": 650
+    },
+    "botWanderRandomMs": {
+      "comment": "Extra random time added to a wander decision, in milliseconds.",
+      "value": 1350
+    },
+    "worldWidth": {
+      "comment": "Map width in world pixels. Applied when the server starts.",
+      "value": 4000
+    },
+    "worldHeight": {
+      "comment": "Map height in world pixels. Applied when the server starts.",
+      "value": 4000
+    },
+    "worldSeed": {
+      "comment": "Random seed for trees, rocks, lakes, flowers, and clouds. The same seed always builds the same map.",
+      "value": 48271
+    },
+    "spawnEdgeMargin": {
+      "comment": "Planes spawn at least this far from the map edge, in world pixels.",
+      "value": 140
+    },
+    "spawnClearance": {
+      "comment": "Planes try not to spawn closer than this to each other, in world pixels.",
+      "value": 260
+    },
+    "spawnAttempts": {
+      "comment": "How many times the server tries to find a clear spawn point before it places the plane anyway.",
+      "value": 80
+    },
+    "cloudCount": {
+      "comment": "How many clouds are placed on the map.",
+      "value": 9
+    },
+    "cloudMarginX": {
+      "comment": "Clouds stay at least this far from the left and right edges.",
+      "value": 160
+    },
+    "cloudMarginY": {
+      "comment": "Clouds stay at least this far from the top and bottom edges.",
+      "value": 140
+    },
+    "cloudSizeMin": {
+      "comment": "Smallest cloud size, in world pixels.",
+      "value": 190
+    },
+    "cloudSizeMax": {
+      "comment": "Largest cloud size, in world pixels.",
+      "value": 280
+    },
+    "variantCount": {
+      "comment": "How many artwork variants exist for each map object, numbered from 1.",
+      "value": 5
+    },
+    "featureMargin": {
+      "comment": "Trees, rocks, lakes, and flowers stay at least this far from the map edge.",
+      "value": 140
+    },
+    "featurePlaceAttempts": {
+      "comment": "Tries per object to find a spot that does not overlap another object.",
+      "value": 500
+    },
+    "treeCount": {
+      "comment": "How many trees to place.",
+      "value": 100
+    },
+    "treeSizeMin": {
+      "comment": "Smallest tree size, in world pixels.",
+      "value": 76
+    },
+    "treeSizeMax": {
+      "comment": "Largest tree size, in world pixels.",
+      "value": 114
+    },
+    "treeClearance": {
+      "comment": "Minimum distance from a tree to any other object, in world pixels.",
+      "value": 155
+    },
+    "flowerCount": {
+      "comment": "How many flowers to place.",
+      "value": 168
+    },
+    "flowerSizeMin": {
+      "comment": "Smallest flower size, in world pixels.",
+      "value": 34
+    },
+    "flowerSizeMax": {
+      "comment": "Largest flower size, in world pixels.",
+      "value": 58
+    },
+    "flowerClearance": {
+      "comment": "Minimum distance from a flower to any other object, in world pixels.",
+      "value": 100
+    },
+    "rockCount": {
+      "comment": "How many rocks to place.",
+      "value": 42
+    },
+    "rockSizeMin": {
+      "comment": "Smallest rock size, in world pixels.",
+      "value": 54
+    },
+    "rockSizeMax": {
+      "comment": "Largest rock size, in world pixels.",
+      "value": 92
+    },
+    "rockClearance": {
+      "comment": "Minimum distance from a rock to any other object, in world pixels.",
+      "value": 145
+    },
+    "lakeCount": {
+      "comment": "How many lakes to place.",
+      "value": 16
+    },
+    "lakeSizeMin": {
+      "comment": "Smallest lake size, in world pixels.",
+      "value": 120
+    },
+    "lakeSizeMax": {
+      "comment": "Largest lake size, in world pixels.",
+      "value": 210
+    },
+    "lakeClearance": {
+      "comment": "Minimum distance from a lake to any other object, in world pixels.",
+      "value": 240
+    },
+    "blastFrameMs": {
+      "comment": "Milliseconds each explosion animation frame is shown.",
+      "value": 55
+    },
+    "blastFrameCount": {
+      "comment": "Number of frames in the explosion animation. The last frame index is this number minus 1.",
+      "value": 12
+    },
+    "blastDurationMs": {
+      "comment": "An explosion is removed after this many milliseconds.",
+      "value": 660
+    },
+    "maxDeltaSeconds": {
+      "comment": "Longest simulation step, in seconds. Stops a stall from moving planes too far in one tick.",
+      "value": 0.1
+    },
+    "tickMs": {
+      "comment": "How often the server simulates the world, in milliseconds.",
+      "value": 50
+    },
+    "broadcastMs": {
+      "comment": "How often the server sends the world to clients, in milliseconds.",
+      "value": 50
+    }
+  }
+}
