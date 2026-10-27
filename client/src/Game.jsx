@@ -371,8 +371,9 @@ export default function Game({ world, playerName, playerId, gameState, controls,
   }, [targetCameraScale]);
   const scaleBaseArea = touchMode ? 390 * 844 : 1280 * 720;
   const uiScale = viewportSize.width && viewportSize.height ? Math.max(0.35, Math.min(3, Math.sqrt((viewportSize.width * viewportSize.height) / scaleBaseArea))) : 1;
-  const miniMapViewWidth = world ? Math.min(100, (viewportSize.width / (cameraScale * uiScale) / world.width) * 100) : 16;
-  const miniMapViewHeight = world ? Math.min(100, (viewportSize.height / (cameraScale * uiScale) / world.height) * 100) : 16;
+  const sceneryScale = cameraScale * uiScale;
+  const miniMapViewWidth = world ? Math.min(100, (viewportSize.width / sceneryScale / world.width) * 100) : 16;
+  const miniMapViewHeight = world ? Math.min(100, (viewportSize.height / sceneryScale / world.height) * 100) : 16;
   const experienceProgress = ownPlayer.xpForNextLevel ? (ownPlayer.xp / ownPlayer.xpForNextLevel) * 100 : 100;
   const healthRatio = ownPlayer.maxHp > 0 ? ownPlayer.hp / ownPlayer.maxHp : 1;
   const attackFade = ownPlayer.attackedAt ? Math.max(0, 1 - (Date.now() - ownPlayer.attackedAt) / 1200) : 0;
@@ -381,8 +382,8 @@ export default function Game({ world, playerName, playerId, gameState, controls,
 
   return (
     <main className={`game-screen ${touchMode ? 'game-screen--mobile' : ''}`} aria-label="Air Plain game" style={{ '--viewport-ui-scale': uiScale }}>
-      <div className="game-viewport" ref={viewportRef} style={{ backgroundImage: "url('/assets/ground pattern.png')", backgroundSize: (760 * uiScale) + 'px ' + (760 * uiScale) + 'px', backgroundPosition: 'calc(50% - ' + (ownPlayer.x * uiScale) + 'px) calc(50% - ' + (ownPlayer.y * uiScale) + 'px)' }}>
-        {world ? <div className="game-world" style={{ position: 'absolute', left: 0, top: 0, width: world.width, height: world.height, transform: 'translate3d(' + (viewportSize.width / 2 - ownPlayer.x * cameraScale * uiScale) + 'px, ' + (viewportSize.height / 2 - ownPlayer.y * cameraScale * uiScale) + 'px, 0) scale(' + (cameraScale * uiScale) + ')', transformOrigin: '0 0' }}>
+      <div className="game-viewport" ref={viewportRef} style={{ backgroundImage: "url('/assets/ground pattern.png')", backgroundSize: (760 * sceneryScale) + 'px ' + (760 * sceneryScale) + 'px', backgroundPosition: 'calc(50% - ' + (ownPlayer.x * sceneryScale) + 'px) calc(50% - ' + (ownPlayer.y * sceneryScale) + 'px)' }}>
+        {world ? <div className="game-world" style={{ position: 'absolute', left: 0, top: 0, width: world.width, height: world.height, transform: 'translate3d(' + (viewportSize.width / 2 - ownPlayer.x * sceneryScale) + 'px, ' + (viewportSize.height / 2 - ownPlayer.y * sceneryScale) + 'px, 0) scale(' + sceneryScale + ')', transformOrigin: '0 0' }}>
           {(world.objects ?? []).map((object) => object.type === 'tree'
             ? <img className="map-object map-tree-image" key={object.id} src={`/assets/trees/t${object.variant}.png`} alt="" aria-hidden="true" style={{ left: object.x, top: object.y, width: object.size / cameraScale, height: (object.size * 1.2) / cameraScale }} />
             : <div className="map-object map-sprite" key={object.id} style={spriteImageStyle(object, cameraScale)} aria-hidden="true" />)}
