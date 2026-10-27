@@ -2,8 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+function sourceDirectory() {
+  if (typeof __dirname !== 'undefined') return __dirname;
+  return dirname(fileURLToPath(import.meta.url));
+}
+
 function findBalancePath() {
-  const besideModule = join(dirname(fileURLToPath(import.meta.url)), 'balance.json');
+  const besideModule = join(sourceDirectory(), 'balance.json');
   const fromProject = join(process.cwd(), 'server', 'src', 'balance.json');
   if (existsSync(besideModule)) return besideModule;
   if (existsSync(fromProject)) return fromProject;

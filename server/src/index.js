@@ -8,7 +8,8 @@ import { MAX_LEVEL, fixed, levelStats } from './balance.js';
 if (process.argv.includes('--serve-client')) process.env.NODE_ENV = 'production';
 
 const port = Number(process.env.PORT ?? 3001);
-const clientDist = join(dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+const sourceDirectory = typeof __dirname !== 'undefined' ? __dirname : dirname(fileURLToPath(import.meta.url));
+const clientDist = join(sourceDirectory, '../../client/dist');
 const clientDistRoot = normalize(clientDist + sep);
 const contentTypes = {
   '.css': 'text/css; charset=utf-8',
@@ -957,7 +958,7 @@ if (!process.env.VERCEL) {
   });
 }
 
-const visitorsFile = join(dirname(fileURLToPath(import.meta.url)), '../data/visitors.json');
+const visitorsFile = join(sourceDirectory, '../data/visitors.json');
 const onlineVisitors = new Map();
 
 function localDay() {
