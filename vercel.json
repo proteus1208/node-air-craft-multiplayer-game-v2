@@ -1,12 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build --prefix client",
-  "outputDirectory": "client/dist",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "functions": {
     "api/server.js": {
       "maxDuration": 300,
-      "includeFiles": "server/src/balance.json"
+      "includeFiles": "../server/src/balance.json"
     }
   },
   "rewrites": [

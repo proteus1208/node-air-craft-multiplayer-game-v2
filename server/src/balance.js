@@ -9,10 +9,12 @@ function sourceDirectory() {
 
 function findBalancePath() {
   const besideModule = join(sourceDirectory(), 'balance.json');
-  const fromProject = join(process.cwd(), 'server', 'src', 'balance.json');
-  if (existsSync(besideModule)) return besideModule;
-  if (existsSync(fromProject)) return fromProject;
-  return besideModule;
+  const candidates = [
+    besideModule,
+    join(process.cwd(), 'server', 'src', 'balance.json'),
+    join(process.cwd(), '..', 'server', 'src', 'balance.json'),
+  ];
+  return candidates.find((path) => existsSync(path)) || besideModule;
 }
 
 const balance = JSON.parse(readFileSync(findBalancePath(), 'utf8'));
