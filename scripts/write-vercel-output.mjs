@@ -36,6 +36,7 @@ writeFileSync(join(functionDir, '.vc-config.json'), JSON.stringify({
 writeFileSync(join(output, 'config.json'), JSON.stringify({
   version: 3,
   routes: [
+    { src: '/api/server/?', dest: '/api/server' },
     { handle: 'filesystem' },
     { src: '/(.*)', dest: '/index.html' },
   ],
