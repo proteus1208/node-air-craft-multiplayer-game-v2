@@ -1,24 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "public" }
-    },
-    {
-      "src": "api/server.js",
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 300,
-        "includeFiles": "server/src/balance.json"
-      }
+  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "public",
+  "functions": {
+    "api/server.js": {
+      "maxDuration": 300,
+      "includeFiles": "server/src/balance.json"
     }
-  ],
-  "routes": [
-    { "src": "^/api/server/?$", "dest": "/api/server.js" },
-    { "handle": "filesystem" },
-    { "src": "^/.*", "dest": "/index.html" }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
