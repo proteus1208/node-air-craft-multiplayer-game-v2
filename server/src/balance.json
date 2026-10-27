@@ -559,8 +559,8 @@
       "value": 15
     },
     "blastDurationMs": {
-      "comment": "How long an explosion stays in the world, in milliseconds. The drawn wave lasts 0.3 seconds; this is longer so that wave can finish after the snapshot reaches the client.",
-      "value": 500
+      "comment": "How long an explosion stays in the world, in milliseconds. The drawn wave lasts 0.55 seconds; this is longer so that wave can finish after the snapshot reaches the client.",
+      "value": 750
     },
     "maxDeltaSeconds": {
       "comment": "Longest simulation step, in seconds. Stops a stall from moving planes too far in one tick.",

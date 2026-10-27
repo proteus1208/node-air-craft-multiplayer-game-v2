@@ -721,15 +721,15 @@ a.menu__button { text-decoration: none; }
 .world-blast {
   z-index: 4;
   border-radius: 50%;
-  background: radial-gradient(circle, transparent 0%, transparent 30%, rgb(255 0 0 / 50%) 100%);
+  background: radial-gradient(circle, transparent 0%, transparent 30%, rgb(255 0 0 / 80%) 100%);
   opacity: 0;
   filter: none;
   box-shadow: none;
   transform: translate(-50%, -50%) scale(0);
   transform-origin: center;
   pointer-events: none;
-  animation: blast-wave 0.3s linear forwards;
-  animation-duration: 0.3s !important;
+  animation: blast-wave 0.55s linear forwards;
+  animation-duration: 0.55s !important;
 }
 @keyframes blast-wave {
   0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
