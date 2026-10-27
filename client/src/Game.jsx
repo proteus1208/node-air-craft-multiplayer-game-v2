@@ -8,21 +8,12 @@ const planeFiles = ['p1.png', 'p4-png.png', 'p3.png', 'p4.png', 'p5.png'];
 const rocketColors = [1, 3, 2, 4, 5];
 const mineColors = [3, 1, 2, 4, 5];
 function blastStyle(blast, cameraScale = 1) {
-  const progress = Math.max(0, Math.min(1, (blast.frame ?? 0) / 14));
-  const scale = (blast.scale ?? 0.8) / Math.max(cameraScale, 0.01);
-  const size = (110 + progress * 190) * scale;
-  const opacity = progress < 0.12 ? progress / 0.12 : 1 - ((progress - 0.12) / 0.88) * 0.92;
-  const spread = 24 + progress * 46;
-  const core = (0.94 - progress * 0.28).toFixed(2);
-  const warm = (0.78 - progress * 0.22).toFixed(2);
-  const red = (0.5 - progress * 0.12).toFixed(2);
+  const size = 120 / Math.max(cameraScale, 0.01);
   return {
     left: blast.x,
     top: blast.y,
     width: size,
     height: size,
-    opacity: Math.max(0.08, opacity),
-    background: `radial-gradient(circle, rgb(255 248 220 / ${core}) 0%, rgb(255 176 48 / ${warm}) ${spread * 0.42}%, rgb(255 54 16 / ${red}) ${spread}%, rgb(255 28 8 / 0.16) ${Math.min(90, spread + 26)}%, transparent 100%)`,
   };
 }
 

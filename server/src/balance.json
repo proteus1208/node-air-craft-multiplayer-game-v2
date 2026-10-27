@@ -183,8 +183,8 @@
       "value": 57
     },
     "rocketBlastRadius": {
-      "comment": "Rocket explosion radius in world pixels. Damage falls off toward the edge.",
-      "value": 180
+      "comment": "Rocket explosion radius in world pixels. Damage falls off toward the edge. Half of the previous 180.",
+      "value": 90
     },
     "rocketBlastScale": {
       "comment": "Visual size of a rocket explosion.",
@@ -227,8 +227,8 @@
       "value": 68
     },
     "mineExpireRadius": {
-      "comment": "Explosion radius when a mine times out, in world pixels.",
-      "value": 72
+      "comment": "Explosion radius when a mine times out, in world pixels. Half of the previous 72.",
+      "value": 36
     },
     "mineExpireDamageRatio": {
       "comment": "Timeout explosion damage is mine damage times this number.",
@@ -263,8 +263,8 @@
       "value": 4000
     },
     "mineMissileBlastRadius": {
-      "comment": "Mine missile explosion radius, in world pixels.",
-      "value": 110
+      "comment": "Mine missile explosion radius, in world pixels. Half of the previous 110.",
+      "value": 55
     },
     "mineMissileBlastScale": {
       "comment": "Visual size of a mine missile explosion.",
