@@ -1,5 +1,15 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build --workspace client",
+  "outputDirectory": "client/dist",
+  "functions": {
+    "api/server.js": {
+      "maxDuration": 300,
+      "includeFiles": "server/src/balance.json"
+    }
+  },
+  "rewrites": [
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }
