@@ -19,7 +19,7 @@ The React client connects to `ws://localhost:3001/ws`. Set `VITE_WEBSOCKET_URL` 
 
 ## Vercel
 
-Import this folder as a Vercel project. `vercel.json` builds the client with `VITE_VERCEL=1` and serves the socket from `/api/server`. The browser reconnects if that socket closes.
+Import this folder as a Vercel project. The project Root Directory must be this folder, the one that contains `api/` and `vercel.json`, not `client`. The page connects to `/api/server`. The browser reconnects if that socket closes.
 
 Vercel pins each socket to one function instance and closes it at the plan duration limit (300 seconds on Hobby). A long-running `npm start` host keeps every player in one world. Set `VITE_WEBSOCKET_URL` at build time when the page and the socket are on different hosts.
 

@@ -1,9 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const balancePath = join(dirname(fileURLToPath(import.meta.url)), 'balance.json');
-const balance = JSON.parse(readFileSync(balancePath, 'utf8'));
+function findBalancePath() {
+  const besideModule = join(dirname(fileURLToPath(import.meta.url)), 'balance.json');
+  const fromProject = join(process.cwd(), 'server', 'src', 'balance.json');
+  if (existsSync(besideModule)) return besideModule;
+  if (existsSync(fromProject)) return fromProject;
+  return besideModule;
+}
+
+const balance = JSON.parse(readFileSync(findBalancePath(), 'utf8'));
 
 export const MAX_LEVEL = balance.maxLevel;
 
