@@ -728,8 +728,8 @@ a.menu__button { text-decoration: none; }
   transform: translate(-50%, -50%) scale(0);
   transform-origin: center;
   pointer-events: none;
-  animation: blast-wave 0.55s linear forwards;
-  animation-duration: 0.55s !important;
+  animation: blast-wave 0.85s linear forwards;
+  animation-duration: 0.85s !important;
 }
 @keyframes blast-wave {
   0% { transform: translate(-50%, -50%) scale(0); opacity: 0; }
