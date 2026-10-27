@@ -105,8 +105,11 @@ const rockets = [];
 const mines = [];
 const blasts = [];
 let nextBotId = 1;
-let lastTickAt = Date.now();
+let simulatedAt = Date.now();
 let lastBroadcastAt = 0;
+let snapshotSeq = 0;
+let lastMetaJson = '';
+let lastMetaAt = 0;
 
 function createWorld() {
   const width = fixed('worldWidth');
@@ -394,16 +397,96 @@ function getPlayerSnapshot(player, now) {
   };
 }
 
+const round1 = (value) => Math.round(value * 10) / 10;
+
+function playerMeta(player) {
+  return [
+    player.id,
+    player.name,
+    getEffectiveTeamId(player),
+    player.level,
+    levelStats(player.level).maxHp,
+    player.isBot ? 1 : 0,
+    player.score,
+    player.kills,
+    Math.ceil(Math.min(MAX_LEVEL, player.level) / fixed('levelsPerPlaneTier')),
+    player.spawnedAt,
+  ];
+}
+
+// Values the owner's browser needs to fly its plane locally between snapshots.
+function ownerPrediction(player, now) {
+  const stats = levelStats(player.level);
+  const botScale = player.isBot ? fixed('botSpeedMultiplier') : 1;
+  const steadySpeed = now >= player.fastBoostUntil && player.fastOriginalSpeed === null && player.speed <= stats.maxSpeedKmh && mineSlowDepth(player, now) <= 0;
+  return {
+    x: round1(player.x),
+    y: round1(player.y),
+    a: round1(player.angle),
+    s: player.speed,
+    k: getSpeedKmh(player, now),
+    tr: slowedTurnRate(player, stats, now),
+    wk: fixed('worldSpeedScale') / fixed('kmhToMetersPerSecond') * botScale,
+    acc: stats.speedAccelerationKmhPerSec,
+    mn: stats.minSpeedKmh,
+    mx: stats.maxSpeedKmh,
+    sm: steadySpeed ? 1 : 0,
+    ack: player.inputSeq ?? 0,
+    at: player.inputAppliedAt ?? 0,
+    sp: player.spawnedAt,
+    hp: player.hp,
+  };
+}
+
+function broadcastMeta(now, force = false) {
+  const metaJson = JSON.stringify([...players.values()].map(playerMeta));
+  if (!force && metaJson === lastMetaJson && now - lastMetaAt < fixed('metaRefreshMs')) return;
+  lastMetaJson = metaJson;
+  lastMetaAt = now;
+  sendToClients('{"type":"meta","p":' + metaJson + '}');
+}
+
 function broadcastSnapshot() {
   const now = Date.now();
-  const snapshot = JSON.stringify({
-    type: 'snapshot',
-    players: [...players.values()].map((player) => getPlayerSnapshot(player, now)),
-    rockets: rockets.map(({ id, ownerId, ownerIsBot, ownerTeamId, mineLaunched, x, y, angle, active, variant, trackingTargetId }) => ({ id, ownerId, ownerIsBot, ownerTeamId, mineLaunched: Boolean(mineLaunched), x, y, angle, active, variant, trackingTargetId })),
-    mines: mines.map(({ id, ownerId, ownerTeamId, x, y, armed, visible, variant }) => ({ id, ownerId, ownerTeamId, x, y, armed, visible, variant })),
-    blasts: blasts.map(({ id, x, y, radius }) => ({ id, x, y, radius })),
-  });
-  sendToClients(snapshot);
+  snapshotSeq += 1;
+  broadcastMeta(now);
+  const playerRows = [];
+  for (const player of players.values()) {
+    const outOfMap = player.x < 0 || player.y < 0 || player.x > world.width || player.y > world.height;
+    const flags = (player.invulnerableUntil > now ? 1 : 0) | (outOfMap ? 2 : 0);
+    playerRows.push([player.id, round1(player.x), round1(player.y), round1(player.angle), player.hp > 0 ? Math.ceil(player.hp) : 0, flags]);
+  }
+  const rocketRows = [];
+  for (const rocket of rockets) {
+    if (!rocket.active) continue;
+    rocketRows.push([rocket.id, round1(rocket.x), round1(rocket.y), round1(rocket.angle), rocket.ownerId, (rocket.ownerIsBot ? 1 : 0) | (rocket.mineLaunched ? 2 : 0), rocket.variant, rocket.ownerTeamId ?? null, rocket.trackingTargetId ?? null]);
+  }
+  const mineRows = [];
+  for (const mine of mines) {
+    if (!mine.visible) continue;
+    mineRows.push([mine.id, round1(mine.x), round1(mine.y), mine.ownerId, mine.ownerTeamId ?? null, mine.armed ? 1 : 0, mine.variant]);
+  }
+  const blastRows = blasts.map(({ id, x, y, radius }) => [id, round1(x), round1(y), radius]);
+  const shared = '{"type":"s","t":' + now + ',"n":' + snapshotSeq
+    + ',"p":' + JSON.stringify(playerRows)
+    + ',"r":' + JSON.stringify(rocketRows)
+    + ',"m":' + JSON.stringify(mineRows)
+    + ',"b":' + JSON.stringify(blastRows);
+  const hudDue = snapshotSeq % fixed('hudEveryBroadcasts') === 0;
+  for (const client of sockets) {
+    if (client.readyState !== 1) continue;
+    const player = client.playerId ? players.get(client.playerId) : null;
+    if (!player) {
+      client.send(shared + '}');
+      continue;
+    }
+    let payload = shared + ',"me":' + JSON.stringify(ownerPrediction(player, now));
+    if (hudDue || client.needsHud) {
+      client.needsHud = false;
+      payload += ',"hud":' + JSON.stringify(getPlayerSnapshot(player, now));
+    }
+    client.send(payload + '}');
+  }
 }
 
 function totalExperience(player) {
@@ -680,11 +763,7 @@ function dropMine(player, now) {
   });
 }
 
-function tick() {
-  const now = Date.now();
-  const delta = Math.min((now - lastTickAt) / 1000, fixed('maxDeltaSeconds'));
-  lastTickAt = now;
-
+function stepWorld(now, delta) {
   for (let index = blasts.length - 1; index >= 0; index -= 1) {
     const blast = blasts[index];
     blast.frame = Math.min(fixed('blastFrameCount') - 1, Math.floor((now - blast.startedAt) / fixed('blastFrameMs')));
@@ -942,14 +1021,29 @@ function tick() {
       mines.splice(index, 1);
     }
   }
+}
 
-  if (now - lastBroadcastAt >= fixed('broadcastMs')) {
-    lastBroadcastAt = now;
+// Fixed-step simulation: every step advances exactly tickMs, so movement does
+// not depend on timer jitter. A long stall drops the backlog instead of
+// fast-forwarding planes.
+function runSimulation() {
+  const now = Date.now();
+  const stepMs = fixed('tickMs');
+  let steps = 0;
+  while (now - simulatedAt >= stepMs && steps < fixed('maxCatchUpSteps')) {
+    simulatedAt += stepMs;
+    stepWorld(simulatedAt, stepMs / 1000);
+    steps += 1;
+  }
+  if (now - simulatedAt >= stepMs) simulatedAt = now;
+  const broadcastMs = fixed('broadcastMs');
+  if (now - lastBroadcastAt >= broadcastMs) {
+    lastBroadcastAt = Math.max(lastBroadcastAt + broadcastMs, now - broadcastMs);
     broadcastSnapshot();
   }
 }
 
-setInterval(tick, fixed('tickMs'));
+setInterval(runSimulation, Math.max(4, Math.floor(fixed('tickMs') / 2)));
 
 if (!process.env.VERCEL) {
   httpServer.listen(port, '0.0.0.0', () => {
@@ -1027,6 +1121,13 @@ function releaseVisit(socket) {
   broadcastVisitors();
 }
 
+// A reconnecting browser can join from a new socket before the old one closes,
+// so only the socket that currently owns the plane may remove it.
+function releasePlayer(socket) {
+  const player = socket.playerId ? players.get(socket.playerId) : null;
+  if (player && player.socket === socket) players.delete(socket.playerId);
+}
+
 export function handleConnection(socket) {
   sockets.add(socket);
   console.log('Client connected');
@@ -1037,32 +1138,46 @@ export function handleConnection(socket) {
   socket.on('message', (rawMessage) => {
     try {
       const message = JSON.parse(rawMessage.toString());
+      if (message.type === 'ping') {
+        socket.send(JSON.stringify({ type: 'pong', c: message.c, t: Date.now() }));
+        return;
+      }
       if (message.type === 'visit') {
         noteVisit(socket, message.id);
         return;
       }
       if (message.type === 'join' && typeof message.id === 'string') {
-        if (socket.playerId && socket.playerId !== message.id) players.delete(socket.playerId);
+        if (socket.playerId && socket.playerId !== message.id) releasePlayer(socket);
         socket.playerId = message.id;
         if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name));
         const joinedPlayer = players.get(socket.playerId);
+        if (joinedPlayer.socket !== socket) joinedPlayer.inputSeq = 0;
+        joinedPlayer.socket = socket;
         joinedPlayer.name = String(message.name || 'Pilot').slice(0, fixed('nameMaxLength'));
         const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, fixed('nameMaxLength')) : '';
         joinedPlayer.teamId = teamCode ? `team:${teamCode}` : null;
         joinedPlayer.teamDamageEnabled = Boolean(message.teamDamageEnabled);
+        socket.needsHud = true;
         maintainBotPopulation();
+        broadcastMeta(Date.now(), true);
         broadcastSnapshot();
         return;
       }
       if (message.type === 'leave') {
-        if (socket.playerId) players.delete(socket.playerId);
+        releasePlayer(socket);
         socket.playerId = null;
         maintainBotPopulation();
         broadcastSnapshot();
         return;
       }
       const player = socket.playerId ? players.get(socket.playerId) : null;
-      if (!player) return;
+      if (!player || player.socket !== socket) return;
+      const seq = Number.isFinite(message.seq) ? message.seq : null;
+      if (seq !== null && seq <= (player.inputSeq ?? 0)) return;
+      if (seq !== null) {
+        player.inputSeq = seq;
+        player.inputAppliedAt = Date.now();
+      }
       if (message.type === 'input' && message.input && typeof message.input === 'object') {
         player.input = {
           left: Boolean(message.input.left),
@@ -1086,7 +1201,7 @@ export function handleConnection(socket) {
     sockets.delete(socket);
     releaseVisit(socket);
     if (socket.playerId) {
-      players.delete(socket.playerId);
+      releasePlayer(socket);
       maintainBotPopulation();
     }
     broadcastSnapshot();

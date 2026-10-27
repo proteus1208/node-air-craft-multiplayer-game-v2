@@ -562,17 +562,25 @@
       "comment": "How long an explosion stays in the world, in milliseconds. The drawn wave lasts 0.55 seconds; this is longer so that wave can finish after the snapshot reaches the client.",
       "value": 750
     },
-    "maxDeltaSeconds": {
-      "comment": "Longest simulation step, in seconds. Stops a stall from moving planes too far in one tick.",
-      "value": 0.1
+    "maxCatchUpSteps": {
+      "comment": "Most simulation steps run in one timer call. After a longer stall the backlog is dropped so planes do not jump.",
+      "value": 5
     },
     "tickMs": {
-      "comment": "How often the server simulates the world, in milliseconds.",
-      "value": 50
+      "comment": "Length of one fixed simulation step, in milliseconds.",
+      "value": 20
     },
     "broadcastMs": {
       "comment": "How often the server sends the world to clients, in milliseconds.",
-      "value": 50
+      "value": 33
+    },
+    "hudEveryBroadcasts": {
+      "comment": "The owner's full HUD block (ammo, timers, XP) is sent once every this many snapshots. Position data is sent every snapshot.",
+      "value": 3
+    },
+    "metaRefreshMs": {
+      "comment": "Player names, levels, teams and scores are resent at least this often, in milliseconds, and also whenever they change.",
+      "value": 5000
     }
   }
 }

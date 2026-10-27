@@ -3,6 +3,7 @@
   "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "regions": ["iad1"],
   "functions": {
     "api/server.js": {
       "maxDuration": 300,

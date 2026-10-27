@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import SoundButton from './SoundButton.jsx';
 import { playEffect } from './audio.js';
+import { advancePrediction, latestInput, recordInput, sampleRemote } from './net.js';
+
+const inputResendMs = 50;
+const debugRefreshMs = 250;
+const hiddenUntilPlaced = { left: 0, top: 0, visibility: 'hidden' };
 
 const gearIcon = <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.95l-.36-2.54A.49.49 0 0 0 13.88 2h-3.76a.49.49 0 0 0-.49.42L9.27 4.96c-.6.24-1.14.56-1.63.95l-2.39-.96a.5.5 0 0 0-.61.22L2.72 8.49a.5.5 0 0 0 .12.64l2.03 1.58a6.5 6.5 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.21.37.3.61.22l2.39-.96c.49.39 1.03.71 1.63.95l.36 2.54c.03.24.24.42.49.42h3.76c.25 0 .46-.18.49-.42l.36-2.54c.6-.24 1.14-.56 1.63-.95l2.39.96c.24.09.49 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>;
 
@@ -42,7 +47,6 @@ function aircraftStyle(player, cameraScale = 1) {
     backgroundImage: 'url(/assets/plain/' + planeFile + ')',
     backgroundSize: '100% 100%',
     backgroundPosition: 'center',
-    transform: 'rotate(' + player.angle + 'deg)',
     '--aircraft-image': 'url(/assets/plain/' + planeFile + ')',
   };
 }
@@ -95,12 +99,25 @@ function compactKey(key) {
   return key.length > 3 ? key.slice(0, 3).toUpperCase() : key.toUpperCase();
 }
 
-export default function Game({ world, playerName, playerId, gameState, controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
+function readDebugFlag() {
+  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
+}
+
+export default function Game({ world, playerName, playerId, gameState, net, connectionStatus = 'connected', controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
   const heldKeys = useRef(new Set());
   const weaponReadyRef = useRef({ rocket: true, mine: true });
   const touchAnalog = useRef({ yaw: 0, throttle: 0 });
   const viewportRef = useRef(null);
-  const snapshotHistory = useRef([]);
+  const worldRef = useRef(null);
+  const ownPlaneRef = useRef(null);
+  const miniPlayerRef = useRef(null);
+  const miniViewRef = useRef(null);
+  const viewRef = useRef({ sceneryScale: 1, width: 0, height: 0, worldWidth: 1, worldHeight: 1, fallback: null });
+  const inputStateRef = useRef(null);
+  const entityEls = useRef({ players: new Map(), rockets: new Map() });
+  const entityRefCallbacks = useRef(new Map());
+  const [debugOpen, setDebugOpen] = useState(readDebugFlag);
+  const [debugStats, setDebugStats] = useState(null);
   const [weaponPress, setWeaponPress] = useState({ type: '', serial: 0 });
   const [ammoRechargePulse, setAmmoRechargePulse] = useState({ rocket: 0, mine: 0 });
   const previousAmmo = useRef(null);
@@ -109,8 +126,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
   const [touchMode] = useState(detectTouchMode);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mobileStick, setMobileStick] = useState({ x: 0, y: 0 });
-  const [visualState, setVisualState] = useState(gameState);
-  const stateForDisplay = visualState ?? gameState;
+  const stateForDisplay = gameState;
   const players = stateForDisplay?.players ?? [];
   const trackedTargetIds = new Set((stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active && rocket.trackingTargetId).map((rocket) => rocket.trackingTargetId));
   const isEnemyWeapon = (weapon) => weapon.ownerId !== playerId && (!ownPlayer.teamId || !weapon.ownerTeamId || weapon.ownerTeamId !== ownPlayer.teamId);
@@ -158,6 +174,34 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     const keyboardThrottle = Number(input['speed-up']) - Number(input['speed-down']);
     return { ...input, yaw: clamp(keyboardYaw + touchAnalog.current.yaw), throttle: clamp(keyboardThrottle + touchAnalog.current.throttle) };
   };
+  inputStateRef.current = inputState;
+  const sendInput = (input) => {
+    const seq = net ? recordInput(net, input, performance.now()) : undefined;
+    sendMessage({ type: 'input', seq, input });
+  };
+  const sendAction = (type) => {
+    const seq = net ? recordInput(net, latestInput(net), performance.now()) : undefined;
+    sendMessage({ type, seq });
+  };
+  // Moving entities are positioned by the frame loop, not by React, so each
+  // one registers its DOM node here.
+  const entityRef = (kind, id) => {
+    const key = kind + ':' + id;
+    let callback = entityRefCallbacks.current.get(key);
+    if (!callback) {
+      callback = (element) => {
+        const registry = entityEls.current[kind];
+        if (element) {
+          registry.set(id, { root: element, plane: element.querySelector('.map-player') });
+        } else {
+          registry.delete(id);
+          entityRefCallbacks.current.delete(key);
+        }
+      };
+      entityRefCallbacks.current.set(key, callback);
+    }
+    return callback;
+  };
   const updateMobileStick = (event) => {
     if (settingsOpen) return;
     const rect = event.currentTarget.getBoundingClientRect();
@@ -172,12 +216,12 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     const applyDeadZone = (value) => Math.abs(value) < 0.04 ? 0 : Math.sign(value) * ((Math.abs(value) - 0.04) / 0.96);
     touchAnalog.current = { yaw: applyDeadZone(x), throttle: -applyDeadZone(y) };
     setMobileStick({ x: x * maxTravel, y: y * maxTravel });
-    sendMessage({ type: 'input', input: inputState() });
+    sendInput(inputState());
   };
   const releaseMobileStick = () => {
     touchAnalog.current = { yaw: 0, throttle: 0 };
     setMobileStick({ x: 0, y: 0 });
-    sendMessage({ type: 'input', input: inputState() });
+    sendInput(inputState());
   };
 
   useEffect(() => {
@@ -243,70 +287,71 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     };
   }, [ownPlayer.spawnedAt, ownPlayer.rocketAmmo, ownPlayer.mineAmmo]);
 
-  useEffect(() => {
-    if (!gameState) return;
-    const history = snapshotHistory.current;
-    history.push({ time: performance.now(), snapshot: gameState });
-    if (history.length > 12) history.splice(0, history.length - 12);
-  }, [gameState]);
-
+  // Positions change every frame, so they are written straight to the DOM here
+  // instead of going through React state.
   useEffect(() => {
     let frameId;
+    let frames = 0;
+    let fpsStartedAt = performance.now();
     const drawFrame = () => {
-      const history = snapshotHistory.current;
-      if (history.length === 1) setVisualState(history[0].snapshot);
-      if (history.length > 1) {
-        const displayTime = performance.now() - 100;
-        let before = history[0];
-        let after = history[0];
-        if (displayTime >= history[history.length - 1].time) {
-          before = history[history.length - 1];
-          after = before;
-        } else if (displayTime <= history[0].time) {
-          after = before;
-        } else {
-          for (let index = 0; index < history.length - 1; index += 1) {
-            if (history[index].time <= displayTime && history[index + 1].time >= displayTime) {
-              before = history[index];
-              after = history[index + 1];
-              break;
-            }
-          }
-        }
-        const span = Math.max(1, after.time - before.time);
-        const blend = Math.max(0, Math.min(1, (displayTime - before.time) / span));
-        const earlierPlayers = new Map((before.snapshot.players ?? []).map((player) => [player.id, player]));
-        const interpolatedPlayers = (after.snapshot.players ?? []).map((player) => {
-          const earlier = earlierPlayers.get(player.id);
-          if (!earlier || earlier.spawnedAt !== player.spawnedAt) return player;
-          const turn = ((player.angle - earlier.angle + 540) % 360) - 180;
-          return {
-            ...player,
-            x: earlier.x + (player.x - earlier.x) * blend,
-            y: earlier.y + (player.y - earlier.y) * blend,
-            angle: earlier.angle + turn * blend,
-            speed: earlier.speed + (player.speed - earlier.speed) * blend,
-            speedKmh: earlier.speedKmh + (player.speedKmh - earlier.speedKmh) * blend,
-          };
-        });
-        const earlierRockets = new Map((before.snapshot.rockets ?? []).map((rocket) => [rocket.id, rocket]));
-        const rockets = (after.snapshot.rockets ?? []).map((rocket) => {
-          const earlier = earlierRockets.get(rocket.id);
-          return earlier ? { ...rocket, x: earlier.x + (rocket.x - earlier.x) * blend, y: earlier.y + (rocket.y - earlier.y) * blend } : rocket;
-        });
-        setVisualState({ ...after.snapshot, players: interpolatedPlayers, rockets });
-      }
       frameId = window.requestAnimationFrame(drawFrame);
+      const now = performance.now();
+      frames += 1;
+      if (net && now - fpsStartedAt >= 1000) {
+        net.stats.fps = Math.round((frames * 1000) / (now - fpsStartedAt));
+        frames = 0;
+        fpsStartedAt = now;
+      }
+      const view = viewRef.current;
+      const own = (net && inputStateRef.current ? advancePrediction(net, inputStateRef.current(), now) : null) ?? view.fallback;
+      if (own) {
+        const scale = view.sceneryScale;
+        const viewport = viewportRef.current;
+        if (viewport) viewport.style.backgroundPosition = 'calc(50% - ' + (own.x * scale) + 'px) calc(50% - ' + (own.y * scale) + 'px)';
+        if (worldRef.current) worldRef.current.style.transform = 'translate3d(' + (view.width / 2 - own.x * scale) + 'px, ' + (view.height / 2 - own.y * scale) + 'px, 0) scale(' + scale + ')';
+        if (ownPlaneRef.current) ownPlaneRef.current.style.transform = 'rotate(' + own.angle + 'deg)';
+        const left = (own.x / view.worldWidth) * 100 + '%';
+        const top = (own.y / view.worldHeight) * 100 + '%';
+        if (miniPlayerRef.current) { miniPlayerRef.current.style.left = left; miniPlayerRef.current.style.top = top; }
+        if (miniViewRef.current) { miniViewRef.current.style.left = left; miniViewRef.current.style.top = top; }
+      }
+      const sample = net ? sampleRemote(net, now) : null;
+      if (!sample) return;
+      for (const [id, element] of entityEls.current.players) {
+        const position = sample.players.get(id);
+        if (!position) continue;
+        element.root.style.transform = 'translate3d(' + position.x + 'px, ' + position.y + 'px, 0) translate(-50%, -50%)';
+        element.root.style.visibility = 'visible';
+        if (element.plane) element.plane.style.transform = 'rotate(' + position.angle + 'deg)';
+      }
+      for (const [id, element] of entityEls.current.rockets) {
+        const position = sample.rockets.get(id);
+        if (!position) continue;
+        element.root.style.transform = 'translate3d(' + position.x + 'px, ' + position.y + 'px, 0) translate(-50%, -50%) rotate(' + position.angle + 'deg)';
+        element.root.style.visibility = 'visible';
+      }
     };
     frameId = window.requestAnimationFrame(drawFrame);
     return () => window.cancelAnimationFrame(frameId);
-  }, []);
+  }, [net]);
 
   useEffect(() => {
+    if (!debugOpen || !net) return undefined;
+    const refresh = () => setDebugStats({ ...net.stats });
+    refresh();
+    const interval = window.setInterval(refresh, debugRefreshMs);
+    return () => window.clearInterval(interval);
+  }, [debugOpen, net]);
+
+  useEffect(() => {
+    if (net) {
+      net.predicted = null;
+      net.me = null;
+    }
     sendMessage({ type: 'join', id: playerId, name: playerName, teamCode, teamDamageEnabled });
     return () => {
       heldKeys.current.clear();
-      sendMessage({ type: 'input', input: {} });
+      sendInput({});
     };
   }, [playerId, playerName, teamCode, teamDamageEnabled, sendMessage]);
 
@@ -314,10 +359,14 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     const keyToControl = new Map(Object.entries(controls).map(([name, key]) => [key.toLowerCase(), name]));
     keyToControl.set('arrowleft', 'left');
     keyToControl.set('arrowright', 'right');
-    const updateInput = () => sendMessage({ type: 'input', input: inputState() });
+    const updateInput = () => sendInput(inputState());
     const onKeyDown = (event) => {
-      if (settingsOpen) return;
       if (event.target instanceof HTMLElement && ['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return;
+      if (event.code === 'Backquote' && !event.repeat) {
+        setDebugOpen((open) => !open);
+        return;
+      }
+      if (settingsOpen) return;
       const key = event.key.toLowerCase();
       const control = keyToControl.get(key);
       if (!control) return;
@@ -325,11 +374,11 @@ export default function Game({ world, playerName, playerId, gameState, controls,
       if (control === 'rocket' || control === 'mine') {
         if (event.repeat || !weaponReadyRef.current[control]) return;
         setWeaponPress((current) => ({ type: control, serial: current.serial + 1 }));
-        sendMessage({ type: control === 'rocket' ? 'launch-rocket' : 'drop-mine' });
+        sendAction(control === 'rocket' ? 'launch-rocket' : 'drop-mine');
         return;
       }
       if (control === 'fast') {
-        if (!event.repeat) sendMessage({ type: 'activate-fast' });
+        if (!event.repeat) sendAction('activate-fast');
         return;
       }
       heldKeys.current.add(control);
@@ -351,7 +400,12 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', onBlur);
-    const interval = window.setInterval(updateInput, 80);
+    // While a control is held the input is repeated, so one lost or late
+    // packet cannot leave the plane turning on stale input.
+    const interval = window.setInterval(() => {
+      const touch = touchAnalog.current;
+      if (heldKeys.current.size || touch.yaw || touch.throttle) updateInput();
+    }, inputResendMs);
     return () => {
       window.clearInterval(interval);
       window.removeEventListener('keydown', onKeyDown);
@@ -365,7 +419,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
       heldKeys.current.clear();
       touchAnalog.current = { yaw: 0, throttle: 0 };
       setMobileStick({ x: 0, y: 0 });
-      sendMessage({ type: 'input', input: {} });
+      sendInput({});
     }
   }, [settingsOpen, sendMessage]);
 
@@ -415,6 +469,14 @@ export default function Game({ world, playerName, playerId, gameState, controls,
   const sceneryScale = cameraScale * uiScale;
   const miniMapViewWidth = world ? Math.min(100, (viewportSize.width / sceneryScale / world.width) * 100) : 16;
   const miniMapViewHeight = world ? Math.min(100, (viewportSize.height / sceneryScale / world.height) * 100) : 16;
+  viewRef.current = {
+    sceneryScale,
+    width: viewportSize.width,
+    height: viewportSize.height,
+    worldWidth: world?.width || 1,
+    worldHeight: world?.height || 1,
+    fallback: { x: ownPlayer.x, y: ownPlayer.y, angle: ownPlayer.angle },
+  };
   const experienceProgress = ownPlayer.xpForNextLevel ? (ownPlayer.xp / ownPlayer.xpForNextLevel) * 100 : 100;
   const healthRatio = ownPlayer.maxHp > 0 ? ownPlayer.hp / ownPlayer.maxHp : 1;
   const attackFade = ownPlayer.attackedAt ? Math.max(0, 1 - (Date.now() - ownPlayer.attackedAt) / 1200) : 0;
@@ -423,13 +485,13 @@ export default function Game({ world, playerName, playerId, gameState, controls,
 
   return (
     <main className={`game-screen ${touchMode ? 'game-screen--mobile' : ''}`} aria-label="Air Plain game" style={{ '--viewport-ui-scale': uiScale }}>
-      <div className="game-viewport" ref={viewportRef} style={{ backgroundImage: "url('/assets/ground pattern.png')", backgroundSize: (760 * sceneryScale) + 'px ' + (760 * sceneryScale) + 'px', backgroundPosition: 'calc(50% - ' + (ownPlayer.x * sceneryScale) + 'px) calc(50% - ' + (ownPlayer.y * sceneryScale) + 'px)' }}>
-        {world ? <div className="game-world" style={{ position: 'absolute', left: 0, top: 0, width: world.width, height: world.height, transform: 'translate3d(' + (viewportSize.width / 2 - ownPlayer.x * sceneryScale) + 'px, ' + (viewportSize.height / 2 - ownPlayer.y * sceneryScale) + 'px, 0) scale(' + sceneryScale + ')', transformOrigin: '0 0' }}>
+      <div className="game-viewport" ref={viewportRef} style={{ backgroundImage: "url('/assets/ground pattern.png')", backgroundSize: (760 * sceneryScale) + 'px ' + (760 * sceneryScale) + 'px' }}>
+        {world ? <div className="game-world" ref={worldRef} style={{ position: 'absolute', left: 0, top: 0, width: world.width, height: world.height, transformOrigin: '0 0' }}>
           {(world.objects ?? []).map((object) => object.type === 'tree'
             ? <img className="map-object map-tree-image" key={object.id} src={`/assets/trees/t${object.variant}.png`} alt="" aria-hidden="true" style={{ left: object.x, top: object.y, width: object.size / cameraScale, height: (object.size * 1.2) / cameraScale }} />
             : <div className="map-object map-sprite" key={object.id} style={spriteImageStyle(object, cameraScale)} aria-hidden="true" />)}
           {(world.clouds ?? []).map((cloud, index) => <div className="map-object map-cloud" key={cloud.id} style={{ ...spriteImageStyle(cloud, cameraScale), left: cloud.x, top: cloud.y, animationDuration: `${14 + cloud.variant * 1.6}s, ${20 + cloud.variant * 2}s`, animationDelay: `${-index * 1.7}s, ${-index * 3.4}s` }} aria-hidden="true" />)}
-          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <div className={`aircraft-entity ${player.id === playerId ? 'aircraft-entity--self' : (player.isBot ? 'aircraft-entity--bot' : '')} ${player.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected' : ''} ${trackedTargetIds.has(player.id) ? 'aircraft-entity--tracked' : ''}`} key={player.id} style={{ left: player.x, top: player.y }}>
+          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <div className={`aircraft-entity ${player.id === playerId ? 'aircraft-entity--self' : (player.isBot ? 'aircraft-entity--bot' : '')} ${player.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected' : ''} ${trackedTargetIds.has(player.id) ? 'aircraft-entity--tracked' : ''}`} key={player.id} ref={entityRef('players', player.id)} style={hiddenUntilPlaced}>
             <div className="aircraft-tag" style={{ zoom: 1 / cameraScale }}>
               <strong><span className="aircraft-tag__level">LV {player.level}</span><span>{player.name}</span></strong>
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
@@ -437,7 +499,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
             <div className="map-player" style={aircraftStyle(player, cameraScale)} role="img" aria-label={`Plane for ${player.name}`} />
             {trackedTargetIds.has(player.id) && <i className="aircraft-target-lock" style={{ width: `${targetLockSize(player, cameraScale)}px`, height: `${targetLockSize(player, cameraScale)}px` }} aria-hidden="true" />}
           </div>)}
-          {(stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active).map((rocket) => { const marker = enemyMarkerSize({ type: 'rocket', ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale); return <i className={'world-rocket ' + (rocket.ownerIsBot ? 'world-rocket--bot ' : '') + (rocket.mineLaunched ? 'world-rocket--mine ' : '') + (isEnemyWeapon(rocket) ? 'world-rocket--enemy' : '')} key={rocket.id} style={{ ...weaponImageStyle({ type: 'rocket', variant: rocket.variant, ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale), left: rocket.x, top: rocket.y, transform: 'translate(-50%, -50%) rotate(' + rocket.angle + 'deg)' }}>{isEnemyWeapon(rocket) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
+          {(stateForDisplay?.rockets ?? []).filter((rocket) => rocket.active).map((rocket) => { const marker = enemyMarkerSize({ type: 'rocket', ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale); return <i className={'world-rocket ' + (rocket.ownerIsBot ? 'world-rocket--bot ' : '') + (rocket.mineLaunched ? 'world-rocket--mine ' : '') + (isEnemyWeapon(rocket) ? 'world-rocket--enemy' : '')} key={rocket.id} ref={entityRef('rockets', rocket.id)} style={{ ...weaponImageStyle({ type: 'rocket', variant: rocket.variant, ownerIsBot: rocket.ownerIsBot, mineLaunched: rocket.mineLaunched }, cameraScale), ...hiddenUntilPlaced }}>{isEnemyWeapon(rocket) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
           {(stateForDisplay?.mines ?? []).filter((mine) => mine.visible).map((mine) => { const marker = enemyMarkerSize({ type: 'mine', ownerIsBot: mine.ownerIsBot }, cameraScale); return <i className={'world-mine ' + (mine.armed ? 'world-mine--armed ' : '') + (isEnemyWeapon(mine) ? 'world-mine--enemy' : '')} key={mine.id} style={{ ...weaponImageStyle({ type: 'mine', variant: mine.variant, ownerIsBot: mine.ownerIsBot }, cameraScale), left: mine.x, top: mine.y }}>{isEnemyWeapon(mine) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
           {(stateForDisplay?.blasts ?? []).map((blast) => <i className="map-object world-blast" key={blast.id} style={blastStyle(blast)} aria-hidden="true" />)}
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
@@ -446,7 +508,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
             <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span>{ownPlayer.name}</span></strong>
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
           </div>
-          <div className="map-player" style={aircraftStyle(ownPlayer)} role="img" aria-label={'Plane for ' + ownPlayer.name} />
+          <div className="map-player" ref={ownPlaneRef} style={aircraftStyle(ownPlayer)} role="img" aria-label={'Plane for ' + ownPlayer.name} />
           {trackedTargetIds.has(playerId) && <i className="aircraft-target-lock" style={{ width: `${targetLockSize(ownPlayer)}px`, height: `${targetLockSize(ownPlayer)}px` }} aria-hidden="true" />}
         </div>}
       </div>
@@ -465,6 +527,15 @@ export default function Game({ world, playerName, playerId, gameState, controls,
       </div>}
 
       <img className="danger-overlay" src="/assets/danger.png" alt="" aria-hidden="true" style={{ opacity: dangerOpacity }} />
+      {connectionStatus !== 'connected' && <div className="connection-banner" role="status" aria-live="polite">Reconnecting to flight control…</div>}
+      {debugOpen && <aside className="net-debug" aria-label="Network statistics">
+        <span>PING <b>{debugStats?.rtt ?? 0} ms</b></span>
+        <span>SNAPSHOTS <b>{debugStats?.snapshotRate ?? 0}/s</b></span>
+        <span>DOWN <b>{((debugStats?.byteRate ?? 0) / 1024).toFixed(1)} KB/s</b></span>
+        <span>BUFFER <b>{debugStats?.bufferMs ?? 0} ms</b></span>
+        <span>PRED ERR <b>{debugStats?.predictionError ?? 0} px</b></span>
+        <span>FPS <b>{debugStats?.fps ?? 0}</b></span>
+      </aside>}
       {ownPlayer.hp <= 0 && (ownPlayer.respawnRemainingMs ?? 0) > 0 && <div className="respawn-timer" role="timer" aria-live="polite"><span>RESPAWNING IN</span><strong>{Math.ceil(ownPlayer.respawnRemainingMs / 1000)}s</strong></div>}
 
       <header className="game-toolbar">
@@ -493,21 +564,21 @@ export default function Game({ world, playerName, playerId, gameState, controls,
 
       <aside className="weapon-board" aria-label="Weapons and ammunition">
         <div className="weapon-board__item">
-          <button type="button" key={`rocket-${weaponPress.type === 'rocket' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--rocket ${rocketReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'rocket' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.rocketPhase === 'preparing' ? rocketMeter * 100 : (ownPlayer.rocketAmmo >= ownPlayer.rocketCapacity ? 0 : (ownPlayer.rocketChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!rocketReady) return; setWeaponPress((current) => ({ type: 'rocket', serial: current.serial + 1 })); sendMessage({ type: 'launch-rocket' }); }} disabled={!rocketReady} aria-label={`${ownPlayer.rocketAmmo} rockets available out of ${ownPlayer.rocketCapacity}`} title={`Rocket: ${Math.round(ownPlayer.rocketDamage ?? 0)} base damage, ${(ownPlayer.rocketPrepareMs ?? 1000) / 1000}s between shots, ${(ownPlayer.rocketChargeMs ?? 2300) / 1000}s ammo recharge. Press ${compactKey(controls.rocket)} or tap to launch.`}>
+          <button type="button" key={`rocket-${weaponPress.type === 'rocket' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--rocket ${rocketReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'rocket' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.rocketPhase === 'preparing' ? rocketMeter * 100 : (ownPlayer.rocketAmmo >= ownPlayer.rocketCapacity ? 0 : (ownPlayer.rocketChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!rocketReady) return; setWeaponPress((current) => ({ type: 'rocket', serial: current.serial + 1 })); sendAction('launch-rocket'); }} disabled={!rocketReady} aria-label={`${ownPlayer.rocketAmmo} rockets available out of ${ownPlayer.rocketCapacity}`} title={`Rocket: ${Math.round(ownPlayer.rocketDamage ?? 0)} base damage, ${(ownPlayer.rocketPrepareMs ?? 1000) / 1000}s between shots, ${(ownPlayer.rocketChargeMs ?? 2300) / 1000}s ammo recharge. Press ${compactKey(controls.rocket)} or tap to launch.`}>
             <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'rocket', variant: planeTierForLevel(ownPlayer) })} /><b key={`rocket-count-${ammoRechargePulse.rocket}`} className={ammoRechargePulse.rocket ? 'weapon-board__count--recharged' : ''}>{ownPlayer.rocketAmmo}</b><small>/{ownPlayer.rocketCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${rocketMeter})` }} />
           </button>
           <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.rocket)}</kbd><strong>ROCKETS</strong></span><small>DMG {Math.round(ownPlayer.rocketDamage ?? 0)}</small><small>PREP {((ownPlayer.rocketPrepareMs ?? 1000) / 1000).toFixed(1)}s</small><small>RECHARGE {((ownPlayer.rocketChargeMs ?? 2300) / 1000).toFixed(1)}s</small></span>
         </div>
         <div className="weapon-board__divider" />
         <div className="weapon-board__item">
-          <button type="button" key={`mine-${weaponPress.type === 'mine' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--mine ${mineReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'mine' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.minePhase === 'preparing' ? mineMeter * 100 : (ownPlayer.mineAmmo >= ownPlayer.mineCapacity ? 0 : (ownPlayer.mineChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!mineReady) return; setWeaponPress((current) => ({ type: 'mine', serial: current.serial + 1 })); sendMessage({ type: 'drop-mine' }); }} disabled={!mineReady} aria-label={`${ownPlayer.mineAmmo} mines available out of ${ownPlayer.mineCapacity}`} title={`Mine: ${Math.round(ownPlayer.mineDamage ?? 35)} base damage, ${(ownPlayer.minePrepareMs ?? 2000) / 1000}s between drops, ${(ownPlayer.mineChargeMs ?? 5000) / 1000}s ammo recharge. Press ${compactKey(controls.mine)} or tap to drop.`}>
+          <button type="button" key={`mine-${weaponPress.type === 'mine' ? weaponPress.serial : 0}`} className={`weapon-board__ammo weapon-board__ammo--mine ${mineReady ? 'weapon-board__ammo--available' : 'weapon-board__ammo--charging'} ${weaponPress.type === 'mine' ? 'weapon-board__ammo--pressed' : ''}`} style={{ '--ammo-progress': `${ownPlayer.minePhase === 'preparing' ? mineMeter * 100 : (ownPlayer.mineAmmo >= ownPlayer.mineCapacity ? 0 : (ownPlayer.mineChargeProgress ?? 0) * 100)}%` }} onClick={() => { if (!mineReady) return; setWeaponPress((current) => ({ type: 'mine', serial: current.serial + 1 })); sendAction('drop-mine'); }} disabled={!mineReady} aria-label={`${ownPlayer.mineAmmo} mines available out of ${ownPlayer.mineCapacity}`} title={`Mine: ${Math.round(ownPlayer.mineDamage ?? 35)} base damage, ${(ownPlayer.minePrepareMs ?? 2000) / 1000}s between drops, ${(ownPlayer.mineChargeMs ?? 5000) / 1000}s ammo recharge. Press ${compactKey(controls.mine)} or tap to drop.`}>
             <span className="weapon-board__weapon-icon" aria-hidden="true" style={weaponImageStyle({ type: 'mine', variant: planeTierForLevel(ownPlayer) })} /><b key={`mine-count-${ammoRechargePulse.mine}`} className={ammoRechargePulse.mine ? 'weapon-board__count--recharged' : ''}>{ownPlayer.mineAmmo}</b><small>/{ownPlayer.mineCapacity}</small><i aria-hidden="true" style={{ transform: `scaleX(${mineMeter})` }} />
           </button>
           <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.mine)}</kbd><strong>MINES</strong></span><small>DMG {Math.round(ownPlayer.mineDamage ?? 0)}</small><small>PREP {((ownPlayer.minePrepareMs ?? 2000) / 1000).toFixed(1)}s</small><small>RECHARGE {((ownPlayer.mineChargeMs ?? 5000) / 1000).toFixed(1)}s</small></span>
         </div>
         <div className="weapon-board__divider" />
         <div className="weapon-board__item weapon-board__item--fast" title={`Fast boost: lasts ${fastDurationSeconds} seconds, accelerates at 150 km/h per second up to 2× max speed, then decelerates at 250 km/h per second to your starting speed. Cooldown: ${(fastCooldownMs / 1000).toFixed(1)} seconds. Press again while active to stop. Use ${compactKey(controls.fast)}.`}>
-          <button className={`weapon-board__ammo weapon-board__ammo--fast ${fastActiveRemainingMs > 0 ? 'weapon-board__ammo--fast-active' : ''}`} type="button" style={{ '--ammo-progress': `${fastCooldownRemainingMs > 0 ? fastReadyProgress * 100 : 0}%` }} onClick={() => sendMessage({ type: 'activate-fast' })} disabled={fastCooldownRemainingMs > 0 && fastActiveRemainingMs <= 0} aria-label={`Fast boost; key ${compactKey(controls.fast)}; press again while active to stop`}>
+          <button className={`weapon-board__ammo weapon-board__ammo--fast ${fastActiveRemainingMs > 0 ? 'weapon-board__ammo--fast-active' : ''}`} type="button" style={{ '--ammo-progress': `${fastCooldownRemainingMs > 0 ? fastReadyProgress * 100 : 0}%` }} onClick={() => sendAction('activate-fast')} disabled={fastCooldownRemainingMs > 0 && fastActiveRemainingMs <= 0} aria-label={`Fast boost; key ${compactKey(controls.fast)}; press again while active to stop`}>
             <span aria-hidden="true">⚡</span><b>1</b><small>/1</small><i className="weapon-board__fast-line" aria-hidden="true" style={{ transform: `scaleX(${fastReadyProgress})` }} /><span className="weapon-board__ammo-pips" aria-hidden="true">{Array.from({ length: 5 }, (_, index) => <i key={index} className={fastReadyProgress >= (index + 1) / 5 ? 'weapon-board__ammo-pip--filled' : ''} />)}</span>
           </button>
           <span className="weapon-board__copy"><span className="weapon-board__action-heading"><kbd>{compactKey(controls.fast)}</kbd><strong>FAST</strong></span><small>TIME {fastDurationSeconds}s</small></span>
@@ -525,8 +596,8 @@ export default function Game({ world, playerName, playerId, gameState, controls,
         <div className="mini-map__label">WORLD MAP</div>
         <div className="mini-map__surface">
           {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <i className={`mini-map__other-player ${player.isBot ? 'mini-map__other-player--bot' : ''}`} key={player.id} style={{ left: `${(player.x / world.width) * 100}%`, top: `${(player.y / world.height) * 100}%` }} />)}
-          <i className="mini-map__player" style={{ left: `${(ownPlayer.x / world.width) * 100}%`, top: `${(ownPlayer.y / world.height) * 100}%` }} />
-          <span className="mini-map__view" aria-hidden="true" style={{ left: `${(ownPlayer.x / world.width) * 100}%`, top: `${(ownPlayer.y / world.height) * 100}%`, width: `${miniMapViewWidth}%`, height: `${miniMapViewHeight}%` }} />
+          <i className="mini-map__player" ref={miniPlayerRef} />
+          <span className="mini-map__view" ref={miniViewRef} aria-hidden="true" style={{ width: `${miniMapViewWidth}%`, height: `${miniMapViewHeight}%` }} />
         </div>
       </aside>}
     </main>

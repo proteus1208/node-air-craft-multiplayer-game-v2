@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Game from './Game.jsx';
 import SoundButton from './SoundButton.jsx';
 import { setSoundEnabled, startBackground } from './audio.js';
+import { createNetState, decodeSnapshot, noteBytes, noteMeta, notePong } from './net.js';
+
+const hudPublishMs = 100;
+const pingMs = 2000;
+const socketRotateMs = 280000;
 
 const configuredWebSocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
 function resolveWebSocketUrl() {
@@ -108,6 +113,8 @@ export default function App() {
   const socketRef = useRef(null);
   const pendingMessagesRef = useRef([]);
   const flightRef = useRef(null);
+  const netRef = useRef(null);
+  if (!netRef.current) netRef.current = createNetState();
 
   const sendGameMessage = useCallback((message) => {
     if (message.type === 'join') flightRef.current = message;
@@ -198,48 +205,99 @@ export default function App() {
     let stopped = false;
     let retryMs = 1000;
     let retryTimer = 0;
-    let socket;
+    let rotateTimer = 0;
+    let lastPublishAt = 0;
+    let lastStructure = '';
+    const retired = new WeakSet();
+    const net = netRef.current;
 
-    const connect = () => {
+    const publish = (decoded, now) => {
+      const structure = decoded.players.map((player) => player.id + (player.hp > 0 ? '+' : '-')).join()
+        + '|' + decoded.rockets.map((rocket) => rocket.id).join()
+        + '|' + decoded.mines.map((mine) => mine.id + (mine.armed ? '+' : '-')).join()
+        + '|' + decoded.blasts.map((blast) => blast.id).join();
+      if (structure === lastStructure && now - lastPublishAt < hudPublishMs) return;
+      lastStructure = structure;
+      lastPublishAt = now;
+      const ownId = flightRef.current?.id;
+      const players = net.hud && ownId ? decoded.players.map((player) => (player.id === ownId ? { ...player, ...net.hud, x: player.x, y: player.y, angle: player.angle, hp: player.hp } : player)) : decoded.players;
+      setGameState({ ...decoded, players });
+    };
+
+    const handleMessage = (event) => {
+      const now = performance.now();
+      noteBytes(net, event.data.length ?? 0, now);
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        setWelcome(String(event.data));
+        return;
+      }
+      if (data.type === 's') publish(decodeSnapshot(net, data, now), now);
+      else if (data.type === 'meta') noteMeta(net, data.p);
+      else if (data.type === 'pong') notePong(net, data.c, now);
+      else if (data.type === 'welcome') setWelcome(data.message);
+      else if (data.type === 'world') setWorld(data.world);
+      else if (data.type === 'visitors' && Number.isFinite(data.today) && Number.isFinite(data.current)) setVisitors({ today: data.today, current: data.current });
+    };
+
+    const scheduleRetry = () => {
+      setStatus('reconnecting');
+      window.clearTimeout(rotateTimer);
+      retryTimer = window.setTimeout(() => openSocket(false), retryMs);
+      retryMs = Math.min(retryMs * 2, 10000);
+    };
+
+    // Vercel closes a socket when its function reaches maxDuration, so a fresh
+    // socket is opened shortly before that and swapped in once it is ready.
+    const openSocket = (rotating) => {
       if (stopped) return;
-      socket = new WebSocket(resolveWebSocketUrl());
-      socketRef.current = socket;
-      socket.addEventListener('open', () => {
-        if (stopped || socketRef.current !== socket) return;
+      const next = new WebSocket(resolveWebSocketUrl());
+      if (!rotating) socketRef.current = next;
+      next.addEventListener('open', () => {
+        if (stopped) { next.close(); return; }
+        const previous = socketRef.current;
+        socketRef.current = next;
+        if (previous && previous !== next) {
+          retired.add(previous);
+          previous.close();
+        }
         retryMs = 1000;
         setStatus('connected');
-        socket.send(JSON.stringify({ type: 'visit', id: readVisitorId() }));
+        next.send(JSON.stringify({ type: 'visit', id: readVisitorId() }));
         const queued = pendingMessagesRef.current;
         pendingMessagesRef.current = [];
-        for (const message of queued) socket.send(JSON.stringify(message));
-        if (flightRef.current && !queued.some((message) => message.type === 'join')) socket.send(JSON.stringify(flightRef.current));
+        for (const message of queued) next.send(JSON.stringify(message));
+        if (flightRef.current && !queued.some((message) => message.type === 'join')) next.send(JSON.stringify(flightRef.current));
+        next.send(JSON.stringify({ type: 'ping', c: performance.now() }));
+        window.clearTimeout(rotateTimer);
+        rotateTimer = window.setTimeout(() => openSocket(true), socketRotateMs);
       });
-      socket.addEventListener('message', (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'welcome') setWelcome(data.message);
-          if (data.type === 'world') setWorld(data.world);
-          if (data.type === 'snapshot') setGameState(data);
-          if (data.type === 'visitors' && Number.isFinite(data.today) && Number.isFinite(data.current)) setVisitors({ today: data.today, current: data.current });
-        } catch {
-          setWelcome(String(event.data));
-        }
+      next.addEventListener('message', (event) => {
+        if (socketRef.current === next) handleMessage(event);
       });
-      socket.addEventListener('close', () => {
-        if (stopped || socketRef.current !== socket) return;
-        setStatus('disconnected');
-        retryTimer = window.setTimeout(connect, retryMs);
-        retryMs = Math.min(retryMs * 2, 10000);
+      next.addEventListener('close', () => {
+        if (stopped || retired.has(next) || socketRef.current !== next) return;
+        scheduleRetry();
       });
-      socket.addEventListener('error', () => {
-        if (!stopped && socketRef.current === socket) setStatus('connection error');
+      next.addEventListener('error', () => {
+        if (!stopped && socketRef.current === next && next.readyState !== WebSocket.OPEN) setStatus('reconnecting');
       });
     };
 
-    connect();
+    const pingTimer = window.setInterval(() => {
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping', c: performance.now() }));
+    }, pingMs);
+
+    openSocket(false);
     return () => {
       stopped = true;
       window.clearTimeout(retryTimer);
+      window.clearTimeout(rotateTimer);
+      window.clearInterval(pingTimer);
+      const socket = socketRef.current;
       socketRef.current = null;
       socket?.close();
     };
@@ -252,6 +310,8 @@ export default function App() {
         playerName={playerName}
         playerId={playerId}
         gameState={gameState}
+        net={netRef.current}
+        connectionStatus={status}
         controls={controls}
         teamCode={teamCode}
         teamDamageEnabled={teamDamageEnabled}
