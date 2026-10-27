@@ -185,6 +185,8 @@ button { font: inherit; }
   gap: 13px;
 }
 
+a.menu__button { text-decoration: none; }
+
 .menu__button {
   position: relative;
   isolation: isolate;
@@ -231,6 +233,16 @@ button { font: inherit; }
   pointer-events: none;
 }
 
+.menu__votes {
+  min-width: 1.6em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 24%);
+  font-size: .62em;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+
 .menu__icon {
   display: inline-grid;
   width: 26px;
@@ -267,12 +279,32 @@ button { font: inherit; }
   outline-offset: 5px;
 }
 
+.visitors {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 18px;
+  color: rgb(246 251 255 / 90%);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 5px rgb(7 29 46 / 78%);
+}
+
+.visitors strong {
+  margin-left: 6px;
+  color: #fff7c0;
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
 .connection {
   display: flex;
   min-height: 26px;
   align-items: center;
   gap: 8px;
-  margin-top: 25px;
+  margin-top: 12px;
   color: rgb(246 251 255 / 90%);
   font-size: 13px;
   font-weight: 800;

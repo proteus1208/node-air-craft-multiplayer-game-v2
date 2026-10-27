@@ -14,10 +14,25 @@ function resolveWebSocketUrl() {
   return protocol + '//' + window.location.host + socketPath;
 }
 
+const githubVoteUrl = 'https://github.com/proteus1208/node-air-craft-multiplayer-game-v2';
+const githubRepoApiUrl = 'https://api.github.com/repos/proteus1208/node-air-craft-multiplayer-game-v2';
+
+function formatVoteCount(count) {
+  let rounded = Math.max(0, Math.round(count));
+  const units = ['', 'K', 'M', 'B'];
+  let unit = 0;
+  while (rounded >= 1000 && unit < units.length - 1) {
+    rounded = Math.round(rounded / 1000);
+    unit += 1;
+  }
+  return `${rounded}${units[unit]}`;
+}
+
 const actions = [
   { label: 'Play', icon: '▶', variant: 'primary', description: 'Start a multiplayer flight' },
   { label: 'Train', icon: '✦', variant: 'secondary', description: 'Practice your flying' },
   { label: 'Help', icon: '?', variant: 'secondary', description: 'Learn how to play' },
+  { label: 'Vote', icon: '★', variant: 'secondary', description: 'Star this game on GitHub', href: githubVoteUrl },
 ];
 
 const defaultControls = {
@@ -67,6 +82,15 @@ function readPlayerId() {
   return id;
 }
 
+function readVisitorId() {
+  let id = localStorage.getItem('airplain-visitor-id');
+  if (!id || !/^[A-Za-z0-9_-]{8,80}$/.test(id)) {
+    id = globalThis.crypto?.randomUUID?.() || `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    localStorage.setItem('airplain-visitor-id', id);
+  }
+  return id;
+}
+
 export default function App() {
   const [status, setStatus] = useState('connecting');
   const [welcome, setWelcome] = useState('');
@@ -81,6 +105,8 @@ export default function App() {
   const [listeningFor, setListeningFor] = useState('');
   const [keyError, setKeyError] = useState('');
   const [gamePage, setGamePage] = useState(false);
+  const [voteCount, setVoteCount] = useState(null);
+  const [visitors, setVisitors] = useState(null);
   const [world, setWorld] = useState(null);
   const [gameState, setGameState] = useState(null);
   const [playerId] = useState(readPlayerId);
@@ -149,6 +175,17 @@ export default function App() {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    fetch(githubRepoApiUrl)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((repo) => {
+        if (!cancelled && Number.isFinite(repo?.stargazers_count)) setVoteCount(repo.stargazers_count);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     let stopped = false;
     let retryMs = 1000;
     let retryTimer = 0;
@@ -162,6 +199,7 @@ export default function App() {
         if (stopped || socketRef.current !== socket) return;
         retryMs = 1000;
         setStatus('connected');
+        socket.send(JSON.stringify({ type: 'visit', id: readVisitorId() }));
         const queued = pendingMessagesRef.current;
         pendingMessagesRef.current = [];
         for (const message of queued) socket.send(JSON.stringify(message));
@@ -173,6 +211,7 @@ export default function App() {
           if (data.type === 'welcome') setWelcome(data.message);
           if (data.type === 'world') setWorld(data.world);
           if (data.type === 'snapshot') setGameState(data);
+          if (data.type === 'visitors' && Number.isFinite(data.today) && Number.isFinite(data.current)) setVisitors({ today: data.today, current: data.current });
         } catch {
           setWelcome(String(event.data));
         }
@@ -253,20 +292,24 @@ export default function App() {
         </p>}
 
         <nav className="menu" aria-label="Main menu">
-          {actions.map(({ label, icon, variant, description }) => (
-            <button
-              className={`menu__button menu__button--${variant}`}
-              key={label}
-              type="button"
-              aria-label={`${label}: ${description}`}
-              onClick={label === 'Play' ? () => setGamePage(true) : undefined}
-            >
+          {actions.map(({ label, icon, variant, description, href }) => {
+            const className = `menu__button menu__button--${variant}`;
+            const votes = label === 'Vote' && voteCount !== null ? formatVoteCount(voteCount) : '';
+            const content = <>
               <span className="menu__icon" aria-hidden="true">{icon}</span>
               <span>{label}</span>
+              {votes && <span className="menu__votes">{votes}</span>}
               <span className="menu__shine" aria-hidden="true" />
-            </button>
-          ))}
+            </>;
+            if (href) return <a className={className} key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={votes ? `${label}: ${description}, ${votes} stars` : `${label}: ${description}`}>{content}</a>;
+            return <button className={className} key={label} type="button" aria-label={`${label}: ${description}`} onClick={label === 'Play' ? () => setGamePage(true) : undefined}>{content}</button>;
+          })}
         </nav>
+
+        <div className="visitors" aria-live="polite" aria-label="Visitor counts">
+          <span>Today <strong>{visitors ? formatVoteCount(visitors.today) : '—'}</strong></span>
+          <span>Now <strong>{visitors ? formatVoteCount(visitors.current) : '—'}</strong></span>
+        </div>
 
         <div className="connection" aria-live="polite">
           <span className={`connection__dot connection__dot--${status === 'connected' ? 'online' : 'idle'}`} />

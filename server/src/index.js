@@ -1,4 +1,4 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -962,14 +962,90 @@ if (!process.env.VERCEL) {
   });
 }
 
+const visitorsFile = join(dirname(fileURLToPath(import.meta.url)), '../data/visitors.json');
+const onlineVisitors = new Map();
+
+function localDay() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function loadTodayVisitors() {
+  const day = localDay();
+  try {
+    const saved = JSON.parse(readFileSync(visitorsFile, 'utf8'));
+    if (saved.day === day && Array.isArray(saved.ids)) return { day, ids: new Set(saved.ids.filter((id) => typeof id === 'string')) };
+  } catch {
+    // A missing file means the day has not started yet.
+  }
+  return { day, ids: new Set() };
+}
+
+let todayVisitors = loadTodayVisitors();
+
+function rememberToday() {
+  if (todayVisitors.day === localDay()) return;
+  todayVisitors = { day: localDay(), ids: new Set(onlineVisitors.keys()) };
+  saveTodayVisitors();
+}
+
+function saveTodayVisitors() {
+  try {
+    mkdirSync(dirname(visitorsFile), { recursive: true });
+    writeFileSync(visitorsFile, JSON.stringify({ day: todayVisitors.day, ids: [...todayVisitors.ids] }));
+  } catch {
+    // The count still updates in memory when the disk cannot be written.
+  }
+}
+
+function broadcastVisitors() {
+  rememberToday();
+  const payload = JSON.stringify({ type: 'visitors', today: todayVisitors.ids.size, current: onlineVisitors.size });
+  for (const client of server.clients) {
+    if (client.readyState === 1) client.send(payload);
+  }
+}
+
+function noteVisit(socket, rawId) {
+  const id = String(rawId || '').trim().slice(0, 80);
+  if (!/^[A-Za-z0-9_-]{8,80}$/.test(id)) return;
+  if (socket.visitorId === id) {
+    broadcastVisitors();
+    return;
+  }
+  if (socket.visitorId) releaseVisit(socket);
+  socket.visitorId = id;
+  rememberToday();
+  const alreadyToday = todayVisitors.ids.has(id);
+  todayVisitors.ids.add(id);
+  if (!alreadyToday) saveTodayVisitors();
+  onlineVisitors.set(id, (onlineVisitors.get(id) || 0) + 1);
+  broadcastVisitors();
+}
+
+function releaseVisit(socket) {
+  const id = socket.visitorId;
+  if (!id) return;
+  socket.visitorId = null;
+  const remaining = (onlineVisitors.get(id) || 1) - 1;
+  if (remaining <= 0) onlineVisitors.delete(id);
+  else onlineVisitors.set(id, remaining);
+  broadcastVisitors();
+}
+
 server.on('connection', (socket) => {
   console.log('Client connected');
   socket.send(JSON.stringify({ type: 'welcome', message: 'Connected to the game server!' }));
   socket.send(JSON.stringify({ type: 'world', world }));
+  broadcastVisitors();
 
   socket.on('message', (rawMessage) => {
     try {
       const message = JSON.parse(rawMessage.toString());
+      if (message.type === 'visit') {
+        noteVisit(socket, message.id);
+        return;
+      }
       if (message.type === 'join' && typeof message.id === 'string') {
         if (socket.playerId && socket.playerId !== message.id) players.delete(socket.playerId);
         socket.playerId = message.id;
@@ -1012,6 +1088,7 @@ server.on('connection', (socket) => {
   });
 
   socket.on('close', () => {
+    releaseVisit(socket);
     if (socket.playerId) {
       players.delete(socket.playerId);
       maintainBotPopulation();
