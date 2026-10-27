@@ -721,9 +721,7 @@ a.menu__button { text-decoration: none; }
 .world-blast {
   z-index: 4;
   border-radius: 50%;
-  background: radial-gradient(circle, transparent 0 34%, rgb(255 70 30 / 18%) 48%, rgb(255 24 12 / 78%) 62%, rgb(255 120 30 / 28%) 74%, transparent 88%);
-  filter: blur(2px);
-  box-shadow: 0 0 18px rgb(255 30 10 / 42%);
+  filter: blur(16px);
   pointer-events: none;
 }
 .danger-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; transition: opacity 140ms linear; }

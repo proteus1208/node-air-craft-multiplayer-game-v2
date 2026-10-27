@@ -191,20 +191,20 @@
       "value": 0.8
     },
     "hitRadiusPadding": {
-      "comment": "Extra pixels added to a plane's body radius when a rocket checks for a hit.",
-      "value": 15
+      "comment": "Extra pixels added around a rocket when it checks for a hit. 0 makes the rocket a point.",
+      "value": 0
     },
     "playerHitRadius": {
-      "comment": "Human plane body radius for rocket hits, in world pixels.",
-      "value": 42
+      "comment": "Human plane body radius for rocket hits, in world pixels. Two thirds of the previous 42.",
+      "value": 28
     },
     "botHitRadius": {
-      "comment": "Bot plane body radius for rocket hits, in world pixels.",
-      "value": 34
+      "comment": "Bot plane body radius for rocket hits, in world pixels. Two thirds of the previous 34.",
+      "value": 22.6666666667
     },
     "rocketClashDistance": {
-      "comment": "Two enemy rockets destroy each other when their paths come this close, in world pixels.",
-      "value": 24
+      "comment": "Two enemy rockets destroy each other when their paths come this close, in world pixels. 0 means they meet only as points.",
+      "value": 0
     },
     "rocketClashBlastScale": {
       "comment": "Visual size when two rockets destroy each other.",
