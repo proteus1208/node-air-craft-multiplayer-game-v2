@@ -94,6 +94,18 @@ function detectTouchMode() {
   return Boolean(mobileAgent || touchPrimary || navigator.maxTouchPoints > 0);
 }
 
+function teamRingSize(cameraScale = 1) {
+  return 120 / Math.max(cameraScale, 0.01);
+}
+
+function teamLabel(player) {
+  if (player.teamName) return player.teamName;
+  if (player.teamId === 'team:a') return 'A';
+  if (player.teamId === 'team:b') return 'B';
+  if (player.teamId?.startsWith('team:')) return player.teamId.slice(5);
+  return '-';
+}
+
 function compactKey(key) {
   if (key === ' ') return 'SPC';
   if (key.startsWith('Arrow')) return key.slice(5, 6).toUpperCase();
@@ -104,7 +116,7 @@ function readDebugFlag() {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
 }
 
-export default function Game({ world, playerName, playerId, gameState, net, connectionStatus = 'connected', controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
+export default function Game({ world, playerName, playerId, gameState, net, connectionStatus = 'connected', controls, teamCode, teamDamageEnabled, roomId = '', team = 'solo', teamPassword = '', sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
   const heldKeys = useRef(new Set());
   const weaponReadyRef = useRef({ rocket: true, mine: true });
   const touchAnalog = useRef({ yaw: 0, throttle: 0 });
@@ -121,6 +133,10 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
   const inputSentAtRef = useRef(0);
   const [debugOpen, setDebugOpen] = useState(readDebugFlag);
   const [debugStats, setDebugStats] = useState(null);
+  const [banners, setBanners] = useState([]);
+  const [hitCombo, setHitCombo] = useState({ count: 0, pulse: 0 });
+  const hitResetAt = useRef(0);
+  const hitCountRef = useRef(0);
   const [weaponPress, setWeaponPress] = useState({ type: '', serial: 0 });
   const [ammoRechargePulse, setAmmoRechargePulse] = useState({ rocket: 0, mine: 0 });
   const previousAmmo = useRef(null);
@@ -332,6 +348,31 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         if (miniViewRef.current) { miniViewRef.current.style.left = left; miniViewRef.current.style.top = top; }
       }
       const sample = net ? sampleRemote(net, now) : null;
+      if (net?.fx?.length) {
+        const events = net.fx.splice(0, net.fx.length);
+        const stamp = Date.now();
+        let pulsed = false;
+        const notices = [];
+        for (const event of events) {
+          if (event[0] === 'h') {
+            hitCountRef.current = stamp > hitResetAt.current ? 1 : hitCountRef.current + 1;
+            hitResetAt.current = stamp + 3000;
+            pulsed = true;
+          } else if (event[0] === 'k') {
+            notices.push({ id: `${stamp}-k-${notices.length}`, kind: 'kill', text: `You just killed ${event[1]}` });
+          } else if (event[0] === 'l') {
+            notices.push({ id: `${stamp}-l-${notices.length}`, kind: 'level', text: `Level up · ${event[1]}` });
+          }
+        }
+        if (pulsed) setHitCombo((current) => ({ count: hitCountRef.current, pulse: current.pulse + 1 }));
+        if (notices.length) {
+          setBanners((current) => [...current, ...notices].slice(-5));
+          window.setTimeout(() => {
+            const ids = new Set(notices.map((notice) => notice.id));
+            setBanners((current) => current.filter((notice) => !ids.has(notice.id)));
+          }, 2200);
+        }
+      }
       if (!sample) return;
       for (const [id, element] of entityEls.current.players) {
         const position = sample.players.get(id);
@@ -352,6 +393,17 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
   }, [net]);
 
   useEffect(() => {
+    if (!hitCombo.count) return undefined;
+    const timer = window.setTimeout(() => {
+      if (Date.now() >= hitResetAt.current) {
+        hitCountRef.current = 0;
+        setHitCombo((current) => ({ ...current, count: 0 }));
+      }
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [hitCombo.pulse, hitCombo.count]);
+
+  useEffect(() => {
     if (!debugOpen || !net) return undefined;
     const refresh = () => setDebugStats({ ...net.stats });
     refresh();
@@ -363,13 +415,16 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
     if (net) {
       net.predicted = null;
       net.me = null;
+      net.history = [];
+      net.meta = new Map();
+      net.fx = [];
     }
-    sendMessage({ type: 'join', id: playerId, name: playerName, teamCode, teamDamageEnabled });
+    sendMessage({ type: 'join', id: playerId, name: playerName, teamCode, teamDamageEnabled, roomId, team, teamPassword });
     return () => {
       heldKeys.current.clear();
       sendInput({});
     };
-  }, [playerId, playerName, teamCode, teamDamageEnabled, sendMessage]);
+  }, [playerId, playerName, teamCode, teamDamageEnabled, roomId, team, teamPassword, sendMessage]);
 
   useEffect(() => {
     const keyToControl = new Map(Object.entries(controls).map(([name, key]) => [key.toLowerCase(), name]));
@@ -510,6 +565,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
             : <div className="map-object map-sprite" key={object.id} style={spriteImageStyle(object, cameraScale)} aria-hidden="true" />)}
           {(world.clouds ?? []).map((cloud, index) => <div className="map-object map-cloud" key={cloud.id} style={{ ...spriteImageStyle(cloud, cameraScale), left: cloud.x, top: cloud.y, animationDuration: `${14 + cloud.variant * 1.6}s, ${20 + cloud.variant * 2}s`, animationDelay: `${-index * 1.7}s, ${-index * 3.4}s` }} aria-hidden="true" />)}
           {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <div className={`aircraft-entity ${player.id === playerId ? 'aircraft-entity--self' : (player.isBot ? 'aircraft-entity--bot' : '')} ${player.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected' : ''} ${trackedTargetIds.has(player.id) ? 'aircraft-entity--tracked' : ''}`} key={player.id} ref={entityRef('players', player.id)} style={hiddenUntilPlaced}>
+            {ownPlayer.teamId && player.teamId === ownPlayer.teamId && <i className="aircraft-team-ring" style={{ width: teamRingSize(cameraScale), height: teamRingSize(cameraScale) }} aria-hidden="true" />}
             <div className="aircraft-tag" style={{ zoom: 1 / cameraScale }}>
               <strong><span className="aircraft-tag__level">LV {player.level}</span><span>{player.name}</span></strong>
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
@@ -522,6 +578,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
           {(stateForDisplay?.blasts ?? []).map((blast) => <i className="map-object world-blast" key={blast.id} style={blastStyle(blast)} aria-hidden="true" />)}
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
         {world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
+          {ownPlayer.teamId && <i className="aircraft-team-ring" style={{ width: teamRingSize(1), height: teamRingSize(1) }} aria-hidden="true" />}
           <div className="aircraft-tag">
             <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span>{ownPlayer.name}</span></strong>
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
@@ -545,6 +602,10 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       </div>}
 
       <img className="danger-overlay" src="/assets/danger.png" alt="" aria-hidden="true" style={{ opacity: dangerOpacity }} />
+      {hitCombo.count > 0 && <div className="hit-toast" key={hitCombo.pulse} aria-live="polite">HIT × {hitCombo.count}</div>}
+      <div className="combat-banners" aria-live="polite">
+        {banners.map((banner) => <strong className={`combat-banner combat-banner--${banner.kind}`} key={banner.id}>{banner.text}</strong>)}
+      </div>
       {connectionStatus !== 'connected' && <div className="connection-banner" role="status" aria-live="polite">Reconnecting to flight control…</div>}
       {debugOpen && <aside className="net-debug" aria-label="Network statistics">
         <span>PING <b>{debugStats?.rtt ?? 0} ms</b></span>
@@ -606,7 +667,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       <aside className="ranking-board" aria-label="Flight ranking">
         <strong className="ranking-board__title">FLIGHT RANKING</strong>
         {rankingPlayers.map((player, index) => <div className={`ranking-board__row ${player.id === playerId ? 'ranking-board__row--self' : ''}`} key={player.id}>
-          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? `Team ${player.teamId.slice(5)}` : 'No team'}>{player.teamId?.startsWith('team:') ? player.teamId.slice(5) : '-'}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
+          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
         </div>)}
       </aside>
 

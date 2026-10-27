@@ -25,6 +25,7 @@ export function createNetState() {
     predicted: null,
     predictedAt: 0,
     correction: { x: 0, y: 0, angle: 0 },
+    fx: [],
     stats: {
       rtt: 0,
       snapshotRate: 0,
@@ -54,7 +55,7 @@ export function noteBytes(net, byteLength, now) {
 }
 
 export function noteMeta(net, rows) {
-  net.meta = new Map(rows.map(([id, name, teamId, level, maxHp, isBot, score, kills, planeTier, spawnedAt]) => [id, { name, teamId, level, maxHp, isBot: Boolean(isBot), score, kills, planeTier, spawnedAt }]));
+  net.meta = new Map(rows.map(([id, name, teamId, level, maxHp, isBot, score, kills, planeTier, spawnedAt, teamColor, teamName]) => [id, { name, teamId, level, maxHp, isBot: Boolean(isBot), score, kills, planeTier, spawnedAt, teamColor: teamColor || '', teamName: teamName || '' }]));
 }
 
 export function notePong(net, sentAt, now) {
@@ -90,6 +91,8 @@ function playerFromRow(net, [id, x, y, angle, hp, flags]) {
     hp,
     name: meta?.name ?? 'Pilot',
     teamId: meta?.teamId ?? null,
+    teamName: meta?.teamName ?? '',
+    teamColor: meta?.teamColor ?? '',
     level: meta?.level ?? 1,
     maxHp: meta?.maxHp ?? 100,
     isBot: meta?.isBot ?? id.startsWith('bot-'),
@@ -118,6 +121,7 @@ export function decodeSnapshot(net, data, arrival) {
   });
   if (net.history.length > HISTORY_LIMIT) net.history.shift();
   if (data.hud) net.hud = data.hud;
+  if (Array.isArray(data.fx)) net.fx.push(...data.fx);
   if (data.me) reconcile(net, data.me, data.t, arrival);
   return { players, rockets, mines, blasts };
 }

@@ -108,8 +108,9 @@ let nextBotId = 1;
 let simulatedAt = Date.now();
 let lastBroadcastAt = 0;
 let snapshotSeq = 0;
-let lastMetaJson = '';
-let lastMetaAt = 0;
+const metaByRoom = new Map();
+const rooms = new Map();
+const customTeamColors = ['#f5c542', '#3ddc97', '#c084fc', '#fb923c', '#22d3ee', '#f472b6', '#a3e635', '#e879f9', '#fbbf24', '#34d399'];
 
 function createWorld() {
   const width = fixed('worldWidth');
@@ -203,14 +204,19 @@ function planeWorldSpeed(player, stats, now = Date.now()) {
   return (getSpeedKmh(player, now) * fixed('worldSpeedScale') / fixed('kmhToMetersPerSecond')) * botScale;
 }
 
-function createSpawnPosition() {
+function sameRoom(left, right) {
+  return (left || null) === (right || null);
+}
+
+function createSpawnPosition(roomId = null) {
   const margin = fixed('spawnEdgeMargin');
+  const occupied = [...players.values()].filter((player) => sameRoom(player.roomId, roomId));
   for (let attempt = 0; attempt < fixed('spawnAttempts'); attempt += 1) {
     const position = {
       x: margin + Math.random() * (world.width - margin * 2),
       y: margin + Math.random() * (world.height - margin * 2),
     };
-    if ([...players.values()].every((player) => Math.hypot(player.x - position.x, player.y - position.y) >= fixed('spawnClearance'))) return position;
+    if (occupied.every((player) => Math.hypot(player.x - position.x, player.y - position.y) >= fixed('spawnClearance'))) return position;
   }
   return { x: margin + Math.random() * (world.width - margin * 2), y: margin + Math.random() * (world.height - margin * 2) };
 }
@@ -225,15 +231,19 @@ function chooseBotSpawnLevel() {
   return 1;
 }
 
-function createPlayer(id, name, isBot = false) {
+function createPlayer(id, name, isBot = false, roomId = null) {
   const level = isBot ? chooseBotSpawnLevel() : 1;
   const stats = levelStats(level);
-  const position = createSpawnPosition();
+  const position = createSpawnPosition(roomId);
   return {
     id,
     name: String(name || 'Pilot').slice(0, fixed('nameMaxLength')),
+    roomId,
     teamId: null,
+    teamName: '',
+    teamColor: '',
     teamDamageEnabled: false,
+    fx: [],
     score: 0,
     kills: 0,
     x: position.x,
@@ -326,15 +336,15 @@ function respawnPlayer(player) {
   player.mineSlowDurationMs = 0;
 }
 
-function maintainBotPopulation() {
+function maintainBotPopulation(roomId = null) {
   const targetBotCount = fixed('botCount');
-  let bots = [...players.values()].filter((player) => player.isBot);
+  let bots = [...players.values()].filter((player) => player.isBot && sameRoom(player.roomId, roomId));
   while (bots.length > targetBotCount) {
     players.delete(bots.pop().id);
   }
   while (bots.length < targetBotCount) {
     const id = `bot-${nextBotId++}`;
-    const bot = createPlayer(id, `Airbot ${String(nextBotId - 1).padStart(2, '0')}`, true);
+    const bot = createPlayer(id, `Airbot ${String(nextBotId - 1).padStart(2, '0')}`, true, roomId);
     players.set(id, bot);
     bots.push(bot);
   }
@@ -411,6 +421,8 @@ function playerMeta(player) {
     player.kills,
     Math.ceil(Math.min(MAX_LEVEL, player.level) / fixed('levelsPerPlaneTier')),
     player.spawnedAt,
+    player.teamColor || '',
+    player.teamName || '',
   ];
 }
 
@@ -438,54 +450,182 @@ function ownerPrediction(player, now) {
   };
 }
 
-function broadcastMeta(now, force = false) {
-  const metaJson = JSON.stringify([...players.values()].map(playerMeta));
-  if (!force && metaJson === lastMetaJson && now - lastMetaAt < fixed('metaRefreshMs')) return;
-  lastMetaJson = metaJson;
-  lastMetaAt = now;
-  sendToClients('{"type":"meta","p":' + metaJson + '}');
+function broadcastMeta(now, roomId = null, force = false) {
+  const key = roomId || '';
+  const metaJson = JSON.stringify([...players.values()].filter((player) => (player.roomId || '') === key).map(playerMeta));
+  const previous = metaByRoom.get(key);
+  if (!force && previous?.json === metaJson && now - previous.at < fixed('metaRefreshMs')) return;
+  metaByRoom.set(key, { json: metaJson, at: now });
+  const payload = '{"type":"meta","p":' + metaJson + '}';
+  for (const client of sockets) {
+    if (client.readyState !== 1 || !client.playerId) continue;
+    const player = players.get(client.playerId);
+    if (!player || player.socket !== client || (player.roomId || '') !== key) continue;
+    client.send(payload);
+  }
+}
+
+function makeRoomId() {
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let id = '';
+  for (let index = 0; index < 6; index += 1) id += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return rooms.has(id) ? makeRoomId() : id;
+}
+
+function humansInRoom(roomId) {
+  let count = 0;
+  for (const player of players.values()) if (!player.isBot && player.roomId === roomId) count += 1;
+  return count;
+}
+
+function roomPayload(room) {
+  const members = [...players.values()].filter((player) => !player.isBot && player.roomId === room.id);
+  const countTeam = (teamId) => members.filter((player) => player.teamId === teamId).length;
+  return {
+    type: 'room',
+    roomId: room.id,
+    teams: [
+      { id: 'a', name: 'Team A', color: '#ff3b46', members: countTeam('team:a'), locked: false },
+      { id: 'b', name: 'Team B', color: '#3b82f6', members: countTeam('team:b'), locked: false },
+      ...[...room.teams.values()].map((team) => ({ id: team.id, name: team.name, color: team.color, members: countTeam(`team:${team.id}`), locked: true })),
+    ],
+  };
+}
+
+function sendRoom(room) {
+  if (!room) return;
+  const payload = JSON.stringify(roomPayload(room));
+  for (const client of sockets) {
+    if (client.readyState !== 1) continue;
+    const playing = client.playerId && players.get(client.playerId)?.roomId === room.id;
+    if (client.watchRoom === room.id || playing) client.send(payload);
+  }
+}
+
+function createRoom() {
+  const room = { id: makeRoomId(), createdAt: Date.now(), teams: new Map() };
+  rooms.set(room.id, room);
+  return room;
+}
+
+function pickTeamColor(room) {
+  const used = new Set([...room.teams.values()].map((team) => team.color));
+  const available = customTeamColors.filter((color) => !used.has(color));
+  const palette = available.length ? available : customTeamColors;
+  return palette[Math.floor(Math.random() * palette.length)];
+}
+
+function createCustomTeam(room, name, password) {
+  const cleanName = String(name || '').trim().slice(0, 24);
+  const cleanPassword = String(password || '').slice(0, 32);
+  if (!cleanName) return { error: 'Enter a team name.' };
+  if (!cleanPassword) return { error: 'Enter a team password.' };
+  if ([...room.teams.values()].some((team) => team.name.toLowerCase() === cleanName.toLowerCase())) return { error: 'That team name is already used.' };
+  const id = `c${Math.random().toString(36).slice(2, 8)}`;
+  room.teams.set(id, { id, name: cleanName, password: cleanPassword, color: pickTeamColor(room) });
+  return { id };
+}
+
+function validateTeamChoice(room, message) {
+  if (!room) return null;
+  const choice = String(message.team || 'solo');
+  if (choice === 'a' || choice === 'b' || choice === 'solo' || choice === '') return null;
+  const custom = room.teams.get(choice);
+  if (!custom) return 'That team is not in this room.';
+  if (custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
+  return null;
+}
+  const choice = String(message.team || 'solo');
+  player.teamDamageEnabled = Boolean(message.teamDamageEnabled);
+  if (!room) {
+    const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, fixed('nameMaxLength')) : '';
+    player.teamId = teamCode ? `team:${teamCode}` : null;
+    player.teamName = teamCode;
+    player.teamColor = '';
+    return null;
+  }
+  if (choice === 'a' || choice === 'b') {
+    player.teamId = `team:${choice}`;
+    player.teamName = choice === 'a' ? 'Team A' : 'Team B';
+    player.teamColor = choice === 'a' ? '#ff3b46' : '#3b82f6';
+    return null;
+  }
+  if (choice === 'solo' || choice === '') {
+    player.teamId = null;
+    player.teamName = '';
+    player.teamColor = '';
+    return null;
+  }
+  const custom = room.teams.get(choice);
+  if (!custom) return 'That team is not in this room.';
+  if (custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
+  player.teamId = `team:${custom.id}`;
+  player.teamName = custom.name;
+  player.teamColor = custom.color;
+  return null;
+}
+
+function releaseRoomIfEmpty(roomId) {
+  if (!roomId || humansInRoom(roomId) > 0) return;
+  for (const [id, player] of players) if (player.isBot && player.roomId === roomId) players.delete(id);
+  rooms.delete(roomId);
+  metaByRoom.delete(roomId);
 }
 
 function broadcastSnapshot() {
   const now = Date.now();
   snapshotSeq += 1;
-  broadcastMeta(now);
-  const playerRows = [];
-  for (const player of players.values()) {
-    const outOfMap = player.x < 0 || player.y < 0 || player.x > world.width || player.y > world.height;
-    const flags = (player.invulnerableUntil > now ? 1 : 0) | (outOfMap ? 2 : 0);
-    playerRows.push([player.id, round1(player.x), round1(player.y), round1(player.angle), player.hp > 0 ? Math.ceil(player.hp) : 0, flags]);
-  }
-  const rocketRows = [];
-  for (const rocket of rockets) {
-    if (!rocket.active) continue;
-    rocketRows.push([rocket.id, round1(rocket.x), round1(rocket.y), round1(rocket.angle), rocket.ownerId, (rocket.ownerIsBot ? 1 : 0) | (rocket.mineLaunched ? 2 : 0), rocket.variant, rocket.ownerTeamId ?? null, rocket.trackingTargetId ?? null]);
-  }
-  const mineRows = [];
-  for (const mine of mines) {
-    if (!mine.visible) continue;
-    mineRows.push([mine.id, round1(mine.x), round1(mine.y), mine.ownerId, mine.ownerTeamId ?? null, mine.armed ? 1 : 0, mine.variant]);
-  }
-  const blastRows = blasts.map(({ id, x, y, radius }) => [id, round1(x), round1(y), radius]);
-  const shared = '{"type":"s","t":' + now + ',"n":' + snapshotSeq
-    + ',"p":' + JSON.stringify(playerRows)
-    + ',"r":' + JSON.stringify(rocketRows)
-    + ',"m":' + JSON.stringify(mineRows)
-    + ',"b":' + JSON.stringify(blastRows);
   const hudDue = snapshotSeq % fixed('hudEveryBroadcasts') === 0;
+  const roomIds = new Set();
   for (const client of sockets) {
-    if (client.readyState !== 1) continue;
-    const player = client.playerId ? players.get(client.playerId) : null;
-    if (!player) {
-      client.send(shared + '}');
-      continue;
+    if (client.readyState !== 1 || !client.playerId) continue;
+    const player = players.get(client.playerId);
+    if (player && player.socket === client) roomIds.add(player.roomId || '');
+  }
+  for (const key of roomIds) {
+    broadcastMeta(now, key || null);
+    const playerRows = [];
+    for (const player of players.values()) {
+      if ((player.roomId || '') !== key) continue;
+      const outOfMap = player.x < 0 || player.y < 0 || player.x > world.width || player.y > world.height;
+      const flags = (player.invulnerableUntil > now ? 1 : 0) | (outOfMap ? 2 : 0);
+      playerRows.push([player.id, round1(player.x), round1(player.y), round1(player.angle), player.hp > 0 ? Math.ceil(player.hp) : 0, flags]);
     }
-    let payload = shared + ',"me":' + JSON.stringify(ownerPrediction(player, now));
-    if (hudDue || client.needsHud) {
-      client.needsHud = false;
-      payload += ',"hud":' + JSON.stringify(getPlayerSnapshot(player, now));
+    const rocketRows = [];
+    for (const rocket of rockets) {
+      if (!rocket.active || (rocket.roomId || '') !== key) continue;
+      rocketRows.push([rocket.id, round1(rocket.x), round1(rocket.y), round1(rocket.angle), rocket.ownerId, (rocket.ownerIsBot ? 1 : 0) | (rocket.mineLaunched ? 2 : 0), rocket.variant, rocket.ownerTeamId ?? null, rocket.trackingTargetId ?? null]);
     }
-    client.send(payload + '}');
+    const mineRows = [];
+    for (const mine of mines) {
+      if (!mine.visible || (mine.roomId || '') !== key) continue;
+      mineRows.push([mine.id, round1(mine.x), round1(mine.y), mine.ownerId, mine.ownerTeamId ?? null, mine.armed ? 1 : 0, mine.variant]);
+    }
+    const blastRows = [];
+    for (const blast of blasts) {
+      if ((blast.roomId || '') !== key) continue;
+      blastRows.push([blast.id, round1(blast.x), round1(blast.y), blast.radius]);
+    }
+    const shared = '{"type":"s","t":' + now + ',"n":' + snapshotSeq
+      + ',"p":' + JSON.stringify(playerRows)
+      + ',"r":' + JSON.stringify(rocketRows)
+      + ',"m":' + JSON.stringify(mineRows)
+      + ',"b":' + JSON.stringify(blastRows);
+    for (const client of sockets) {
+      if (client.readyState !== 1 || !client.playerId) continue;
+      const player = players.get(client.playerId);
+      if (!player || player.socket !== client || (player.roomId || '') !== key) continue;
+      let payload = shared + ',"me":' + JSON.stringify(ownerPrediction(player, now));
+      if (hudDue || client.needsHud) {
+        client.needsHud = false;
+        payload += ',"hud":' + JSON.stringify(getPlayerSnapshot(player, now));
+      }
+      if (player.fx?.length) {
+        payload += ',"fx":' + JSON.stringify(player.fx);
+        player.fx = [];
+      }
+      client.send(payload + '}');
+    }
   }
 }
 
@@ -505,8 +645,15 @@ function applyTotalExperience(player, amount) {
   player.xp = remaining;
 }
 
+function pushFx(player, event) {
+  if (!player || player.isBot) return;
+  if (!player.fx) player.fx = [];
+  player.fx.push(event);
+}
+
 function addExperience(player, amount) {
-  if (player.level >= MAX_LEVEL) return;
+  if (player.level >= MAX_LEVEL) return 0;
+  const startLevel = player.level;
   player.xp += amount;
   while (player.level < MAX_LEVEL && player.xp >= levelStats(player.level).xpToNextLevel) {
     player.xp -= levelStats(player.level).xpToNextLevel;
@@ -517,6 +664,11 @@ function addExperience(player, amount) {
     player.mineAmmo = Math.min(stats.mineCapacity, player.mineAmmo + 1);
     player.speed = Math.max(stats.minSpeedKmh, Math.min(stats.maxSpeedKmh, player.speed));
   }
+  return player.level - startLevel;
+}
+
+function grantExperience(player, amount) {
+  if (addExperience(player, amount) > 0) pushFx(player, ['l', player.level]);
 }
 
 function damagePlayer(victim, damage, ownerId) {
@@ -526,14 +678,16 @@ function damagePlayer(victim, damage, ownerId) {
   victim.lastAttackedAt = Date.now();
   victim.hp = Math.max(0, victim.hp - damage);
   const attacker = players.get(ownerId);
-  if (attacker && attacker.id !== victim.id && attacker.hp > 0) {
+  if (attacker && attacker.id !== victim.id && attacker.hp > 0 && sameRoom(attacker.roomId, victim.roomId)) {
     if (victim.hp === 0 && previousHp > 0) {
       const levelDifference = victimLevel - attacker.level;
       attacker.kills += 1;
       attacker.score += Math.max(fixed('minKillScore'), fixed('killScoreBase') + levelDifference * fixed('killScorePerLevelGap'));
-      addExperience(attacker, Math.max(fixed('minKillXp'), fixed('killXpBase') + levelDifference * fixed('killXpPerLevelGap')));
-    } else if (victim.hp > 0) {
-      addExperience(attacker, Math.max(fixed('minHitXp'), Math.floor(damage * fixed('hitXpDamageRatio'))));
+      pushFx(attacker, ['k', victim.name]);
+      grantExperience(attacker, Math.max(fixed('minKillXp'), fixed('killXpBase') + levelDifference * fixed('killXpPerLevelGap')));
+    } else if (victim.hp > 0 && victim.hp < previousHp) {
+      pushFx(attacker, ['h']);
+      grantExperience(attacker, Math.max(fixed('minHitXp'), Math.floor(damage * fixed('hitXpDamageRatio'))));
     }
   }
   if (victim.hp === 0) {
@@ -545,13 +699,13 @@ function damagePlayer(victim, damage, ownerId) {
   }
 }
 
-function spawnBlast(x, y, now, radius) {
-  blasts.push({ id: `blast-${now}-${Math.random().toString(36).slice(2, 8)}`, x, y, startedAt: now, frame: 0, radius });
+function spawnBlast(x, y, now, radius, roomId = null) {
+  blasts.push({ id: `blast-${now}-${Math.random().toString(36).slice(2, 8)}`, x, y, startedAt: now, frame: 0, radius, roomId });
 }
 
-function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDamageEnabled, directHitId = null, healShooter = false, slowDurationMs = 0) {
+function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDamageEnabled, directHitId = null, healShooter = false, slowDurationMs = 0, roomId = null) {
   for (const player of players.values()) {
-    if (player.id === ownerId || player.hp <= 0) continue;
+    if (player.id === ownerId || player.hp <= 0 || !sameRoom(player.roomId, roomId)) continue;
     const distance = Math.hypot(player.x - x, player.y - y);
     if (distance > radius) continue;
     const sameTeam = Boolean(ownerTeamId) && getEffectiveTeamId(player) === ownerTeamId;
@@ -586,6 +740,7 @@ function launchMineMissile(mine, target, now) {
   const maxSpeed = fixed('mineMissileMaxSpeed') * (mine.ownerIsBot ? fixed('botSpeedMultiplier') : 1);
   rockets.push({
     id: `mine-missile-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    roomId: mine.roomId || null,
     ownerId: mine.ownerId,
     ownerIsBot: mine.ownerIsBot,
     ownerTeamId: mine.ownerTeamId,
@@ -648,7 +803,7 @@ function rocketForwardOffset(rocket, plane) {
 }
 
 function rocketCanTrack(rocket, plane) {
-  if (!plane || plane.hp <= 0 || plane.id === rocket.ownerId) return false;
+  if (!plane || plane.hp <= 0 || plane.id === rocket.ownerId || !sameRoom(plane.roomId, rocket.roomId)) return false;
   const sameTeam = Boolean(rocket.ownerTeamId) && getEffectiveTeamId(plane) === rocket.ownerTeamId;
   if (sameTeam && !rocket.teamDamageEnabled) return false;
   const distance = Math.hypot(plane.x - rocket.x, plane.y - rocket.y);
@@ -696,6 +851,7 @@ function fireRocket(player, now) {
   const planeSpeed = planeWorldSpeed(player, stats);
   rockets.push({
     id: `rocket-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    roomId: player.roomId || null,
     ownerId: player.id,
     ownerIsBot: player.isBot,
     ownerTeamId: getEffectiveTeamId(player),
@@ -746,6 +902,7 @@ function dropMine(player, now) {
   syncWeaponPhase(player, now);
   mines.push({
     id: `mine-${now}-${Math.random().toString(36).slice(2, 8)}`,
+    roomId: player.roomId || null,
     ownerId: player.id,
     ownerTeamId: getEffectiveTeamId(player),
     teamDamageEnabled: player.teamDamageEnabled,
@@ -795,7 +952,7 @@ function stepWorld(now, delta) {
         if (action.type === 'mine') dropMine(player, now);
       }
       let target = player.botTargetId ? players.get(player.botTargetId) : null;
-      if (player.botTargetId && (!target || target.id === player.id || target.hp <= 0 || !canTargetPlayer(target) || now >= player.botTargetExpiresAt)) {
+      if (player.botTargetId && (!target || target.id === player.id || target.hp <= 0 || !sameRoom(target.roomId, player.roomId) || !canTargetPlayer(target) || now >= player.botTargetExpiresAt)) {
         player.botTargetId = null;
         player.botTargetExpiresAt = 0;
         player.botNextTargetAt = now + fixed('botRetargetMs');
@@ -803,10 +960,10 @@ function stepWorld(now, delta) {
       }
       if (!target && now >= player.botNextTargetAt) {
         const nearbyBots = [...players.values()].filter((candidate) => {
-          return candidate.isBot && candidate.id !== player.id && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
+          return candidate.isBot && candidate.id !== player.id && candidate.hp > 0 && sameRoom(candidate.roomId, player.roomId) && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
         });
         const nearbyHumans = [...players.values()].filter((candidate) => {
-          return !candidate.isBot && candidate.hp > 0 && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
+          return !candidate.isBot && candidate.hp > 0 && sameRoom(candidate.roomId, player.roomId) && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
         });
         const chooseHuman = nearbyHumans.length > 0 && (nearbyBots.length === 0 || Math.random() < fixed('botPreferHumanChance'));
         const candidates = chooseHuman ? nearbyHumans : nearbyBots.length ? nearbyBots : nearbyHumans;
@@ -948,15 +1105,15 @@ function stepWorld(now, delta) {
     let hit = false;
     let impact = null;
     for (const player of players.values()) {
-      if (player.id === rocket.ownerId || player.hp <= 0) continue;
+      if (player.id === rocket.ownerId || player.hp <= 0 || !sameRoom(player.roomId, rocket.roomId)) continue;
       const collisionRadius = (player.isBot ? fixed('botHitRadius') : fixed('playerHitRadius')) + fixed('hitRadiusPadding');
       const contact = pointToSegmentDistance(player.x, player.y, previousX, previousY, rocket.x, rocket.y);
       if (contact.distance <= collisionRadius && (!impact || contact.distance < impact.distance)) impact = { ...contact, playerId: player.id };
     }
     if (impact) {
       const blastRadius = rocket.mineLaunched ? fixed('mineMissileBlastRadius') : fixed('rocketBlastRadius');
-      applyBlastDamage(impact.x, impact.y, blastRadius, rocket.damage, rocket.ownerId, rocket.ownerTeamId, rocket.teamDamageEnabled, impact.playerId, true, rocket.mineLaunched ? (rocket.slowDurationMs || 0) : 0);
-      spawnBlast(impact.x, impact.y, now, blastRadius);
+      applyBlastDamage(impact.x, impact.y, blastRadius, rocket.damage, rocket.ownerId, rocket.ownerTeamId, rocket.teamDamageEnabled, impact.playerId, true, rocket.mineLaunched ? (rocket.slowDurationMs || 0) : 0, rocket.roomId || null);
+      spawnBlast(impact.x, impact.y, now, blastRadius, rocket.roomId || null);
       hit = true;
     }
     if (hit || rocket.distance >= rocket.range || now > rocket.expiresAt) rockets.splice(index, 1);
@@ -971,6 +1128,7 @@ function stepWorld(now, delta) {
       const secondRocket = rockets[second];
       const secondPath = rocketSegments.get(secondRocket.id);
       if (!secondPath || destroyedRocketIds.has(secondRocket.id)) continue;
+      if ((firstRocket.roomId || '') !== (secondRocket.roomId || '')) continue;
       const sameOwner = firstRocket.ownerId === secondRocket.ownerId;
       const sameTeam = Boolean(firstRocket.ownerTeamId) && firstRocket.ownerTeamId === secondRocket.ownerTeamId;
       if (sameOwner || sameTeam) continue;
@@ -984,7 +1142,7 @@ function stepWorld(now, delta) {
         const secondY = secondPath.startY + (secondPath.endY - secondPath.startY) * relativeContact.progress;
         destroyedRocketIds.add(firstRocket.id);
         destroyedRocketIds.add(secondRocket.id);
-        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, fixed('rocketBlastRadius'));
+        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, fixed('rocketBlastRadius'), firstRocket.roomId || null);
       }
     }
   }
@@ -1002,7 +1160,7 @@ function stepWorld(now, delta) {
     }
     if (mine.armed) {
       const target = [...players.values()]
-        .filter((player) => player.id !== mine.ownerId && player.hp > 0)
+        .filter((player) => player.id !== mine.ownerId && player.hp > 0 && sameRoom(player.roomId, mine.roomId))
         .map((player) => ({ player, distance: Math.hypot(player.x - mine.x, player.y - mine.y) }))
         .filter(({ player, distance }) => {
           const sameTeam = Boolean(mine.ownerTeamId) && getEffectiveTeamId(player) === mine.ownerTeamId;
@@ -1016,8 +1174,8 @@ function stepWorld(now, delta) {
       }
     }
     if (now >= mine.expiresAt) {
-      applyBlastDamage(mine.x, mine.y, fixed('mineExpireRadius'), mine.damage * fixed('mineExpireDamageRatio'), mine.ownerId, mine.ownerTeamId, mine.teamDamageEnabled, null, false, mine.slowDurationMs || 0);
-      spawnBlast(mine.x, mine.y, now, fixed('mineExpireRadius'));
+      applyBlastDamage(mine.x, mine.y, fixed('mineExpireRadius'), mine.damage * fixed('mineExpireDamageRatio'), mine.ownerId, mine.ownerTeamId, mine.teamDamageEnabled, null, false, mine.slowDurationMs || 0, mine.roomId || null);
+      spawnBlast(mine.x, mine.y, now, fixed('mineExpireRadius'), mine.roomId || null);
       mines.splice(index, 1);
     }
   }
@@ -1125,7 +1283,10 @@ function releaseVisit(socket) {
 // so only the socket that currently owns the plane may remove it.
 function releasePlayer(socket) {
   const player = socket.playerId ? players.get(socket.playerId) : null;
-  if (player && player.socket === socket) players.delete(socket.playerId);
+  if (!player || player.socket !== socket) return null;
+  const roomId = player.roomId || null;
+  players.delete(socket.playerId);
+  return roomId;
 }
 
 export function handleConnection(socket) {
@@ -1146,28 +1307,79 @@ export function handleConnection(socket) {
         noteVisit(socket, message.id);
         return;
       }
+      if (message.type === 'create-room') {
+        const room = createRoom();
+        socket.watchRoom = room.id;
+        socket.send(JSON.stringify(roomPayload(room)));
+        return;
+      }
+      if (message.type === 'room-info' && typeof message.roomId === 'string') {
+        const room = rooms.get(message.roomId);
+        if (!room) {
+          socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
+          return;
+        }
+        socket.watchRoom = room.id;
+        socket.send(JSON.stringify(roomPayload(room)));
+        return;
+      }
+      if (message.type === 'create-team' && typeof message.roomId === 'string') {
+        const room = rooms.get(message.roomId);
+        if (!room) {
+          socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
+          return;
+        }
+        const created = createCustomTeam(room, message.name, message.password);
+        if (created.error) {
+          socket.send(JSON.stringify({ type: 'room-error', message: created.error }));
+          return;
+        }
+        socket.watchRoom = room.id;
+        socket.send(JSON.stringify({ ...roomPayload(room), joinedTeam: created.id }));
+        sendRoom(room);
+        return;
+      }
       if (message.type === 'join' && typeof message.id === 'string') {
-        if (socket.playerId && socket.playerId !== message.id) releasePlayer(socket);
+        const requestedRoom = typeof message.roomId === 'string' && message.roomId ? message.roomId : null;
+        const room = requestedRoom ? rooms.get(requestedRoom) : null;
+        if (requestedRoom && !room) {
+          socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
+          return;
+        }
+        const teamError = validateTeamChoice(room, message);
+        if (teamError) {
+          socket.send(JSON.stringify({ type: 'room-error', message: teamError }));
+          return;
+        }
+        if (socket.playerId && socket.playerId !== message.id) {
+          const previousRoom = releasePlayer(socket);
+          if (previousRoom && humansInRoom(previousRoom) === 0) releaseRoomIfEmpty(previousRoom);
+          else maintainBotPopulation(previousRoom);
+        }
         socket.playerId = message.id;
-        if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name));
+        if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name, false, room?.id || null));
         const joinedPlayer = players.get(socket.playerId);
         if (joinedPlayer.socket !== socket) joinedPlayer.inputSeq = 0;
         joinedPlayer.socket = socket;
+        joinedPlayer.roomId = room?.id || null;
         joinedPlayer.name = String(message.name || 'Pilot').slice(0, fixed('nameMaxLength'));
-        const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, fixed('nameMaxLength')) : '';
-        joinedPlayer.teamId = teamCode ? `team:${teamCode}` : null;
-        joinedPlayer.teamDamageEnabled = Boolean(message.teamDamageEnabled);
+        applyTeamChoice(room, joinedPlayer, message);
+        socket.watchRoom = room?.id || null;
         socket.needsHud = true;
-        maintainBotPopulation();
-        broadcastMeta(Date.now(), true);
+        maintainBotPopulation(joinedPlayer.roomId);
+        broadcastMeta(Date.now(), joinedPlayer.roomId, true);
         broadcastSnapshot();
+        if (room) sendRoom(room);
         return;
       }
       if (message.type === 'leave') {
-        releasePlayer(socket);
+        const roomId = releasePlayer(socket);
         socket.playerId = null;
-        maintainBotPopulation();
+        if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
+        else maintainBotPopulation(roomId);
+        const room = roomId ? rooms.get(roomId) : null;
         broadcastSnapshot();
+        if (room) sendRoom(room);
         return;
       }
       const player = socket.playerId ? players.get(socket.playerId) : null;
@@ -1211,8 +1423,11 @@ export function handleConnection(socket) {
     sockets.delete(socket);
     releaseVisit(socket);
     if (socket.playerId) {
-      releasePlayer(socket);
-      maintainBotPopulation();
+      const roomId = releasePlayer(socket);
+      if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
+      else maintainBotPopulation(roomId);
+      const room = roomId ? rooms.get(roomId) : null;
+      if (room) sendRoom(room);
     }
     broadcastSnapshot();
     console.log('Client disconnected');
