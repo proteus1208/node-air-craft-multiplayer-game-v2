@@ -1,6 +1,6 @@
 node_modules/
 server/data/
 dist/
-public/
+/public/
 .env
 .DS_Store

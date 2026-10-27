@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "workspaces": ["server", "client"],
+  "workspaces": [
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "concurrently -k \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
     "dev:server": "npm run dev --workspace server",
@@ -13,5 +16,8 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.2"
+  },
+  "dependencies": {
+    "@vercel/functions": "^3.10.4"
   }
 }
