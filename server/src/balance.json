@@ -104,7 +104,7 @@
       "level15": 30
     },
     "mineSlowMs": {
-      "comment": "How long a mine slows a hit plane. Speed eases down to half, stays there, then eases back up. Level 1 is 2 seconds. Level 15 is 4 seconds. Rockets do not slow planes.",
+      "comment": "How long a mine slows a hit plane. Airspeed eases down to half of minimum speed, and turn rate eases down to half of the level's original turn rate. Both stay there, then ease back. Fast during the slow flies at minimum speed, because half of minimum times the 2x boost is minimum speed. After the slow ends, that boost can still be at 2x top speed. Level 1 is 2 seconds. Level 15 is 4 seconds. Rockets do not slow planes.",
       "level1": 2000,
       "level15": 4000
     },

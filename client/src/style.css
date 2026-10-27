@@ -1006,7 +1006,7 @@ button { font: inherit; }
 
 .mini-map__other-player--bot { border-color: rgb(38 48 39 / 92%); background: #263329; box-shadow: 0 0 3px rgb(10 20 12 / 72%); }
 
-.aircraft-entity--bot .map-player { filter: brightness(.7); }
+.aircraft-entity--bot .map-player { filter: brightness(.5); }
 
 /* Mobile HUD layout: reserve the center top for level, align speed over the stick. */
 .game-screen--mobile {

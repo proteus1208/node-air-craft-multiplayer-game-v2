@@ -4,10 +4,14 @@ import Game from './Game.jsx';
 const configuredWebSocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
 function resolveWebSocketUrl() {
   if (configuredWebSocketUrl) return configuredWebSocketUrl;
-  if (typeof window === 'undefined') return 'ws://localhost:3001';
+  if (typeof window === 'undefined') return 'ws://localhost:3001/ws';
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const hostname = window.location.hostname || 'localhost';
-  return protocol + '//' + hostname + ':3001';
+  if (!import.meta.env.PROD) {
+    const hostname = window.location.hostname || 'localhost';
+    return protocol + '//' + hostname + ':3001/ws';
+  }
+  const socketPath = import.meta.env.VITE_VERCEL === '1' ? '/api/server' : '/ws';
+  return protocol + '//' + window.location.host + socketPath;
 }
 
 const actions = [
@@ -82,11 +86,14 @@ export default function App() {
   const [playerId] = useState(readPlayerId);
   const socketRef = useRef(null);
   const pendingMessagesRef = useRef([]);
+  const flightRef = useRef(null);
 
   const sendGameMessage = useCallback((message) => {
+    if (message.type === 'join') flightRef.current = message;
+    if (message.type === 'leave') flightRef.current = null;
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
-    else if (socket?.readyState === WebSocket.CONNECTING && (message.type === 'join' || message.type === 'leave')) pendingMessagesRef.current.push(message);
+    else if (message.type === 'join' || message.type === 'leave') pendingMessagesRef.current.push(message);
   }, []);
 
   useEffect(() => {
@@ -142,33 +149,51 @@ export default function App() {
   };
 
   useEffect(() => {
-    const socket = new WebSocket(resolveWebSocketUrl());
-    socketRef.current = socket;
+    let stopped = false;
+    let retryMs = 1000;
+    let retryTimer = 0;
+    let socket;
 
-    socket.addEventListener('open', () => {
-      setStatus('connected');
-      for (const message of pendingMessagesRef.current) socket.send(JSON.stringify(message));
-      pendingMessagesRef.current = [];
-    });
-    socket.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'welcome') setWelcome(data.message);
-        if (data.type === 'world') setWorld(data.world);
-        if (data.type === 'snapshot') setGameState(data);
-      } catch {
-        setWelcome(String(event.data));
-      }
-    });
-    socket.addEventListener('close', () => {
-      pendingMessagesRef.current = [];
-      setStatus('disconnected');
-    });
-    socket.addEventListener('error', () => setStatus('connection error'));
+    const connect = () => {
+      if (stopped) return;
+      socket = new WebSocket(resolveWebSocketUrl());
+      socketRef.current = socket;
+      socket.addEventListener('open', () => {
+        if (stopped || socketRef.current !== socket) return;
+        retryMs = 1000;
+        setStatus('connected');
+        const queued = pendingMessagesRef.current;
+        pendingMessagesRef.current = [];
+        for (const message of queued) socket.send(JSON.stringify(message));
+        if (flightRef.current && !queued.some((message) => message.type === 'join')) socket.send(JSON.stringify(flightRef.current));
+      });
+      socket.addEventListener('message', (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'welcome') setWelcome(data.message);
+          if (data.type === 'world') setWorld(data.world);
+          if (data.type === 'snapshot') setGameState(data);
+        } catch {
+          setWelcome(String(event.data));
+        }
+      });
+      socket.addEventListener('close', () => {
+        if (stopped || socketRef.current !== socket) return;
+        setStatus('disconnected');
+        retryTimer = window.setTimeout(connect, retryMs);
+        retryMs = Math.min(retryMs * 2, 10000);
+      });
+      socket.addEventListener('error', () => {
+        if (!stopped && socketRef.current === socket) setStatus('connection error');
+      });
+    };
 
+    connect();
     return () => {
+      stopped = true;
+      window.clearTimeout(retryTimer);
       socketRef.current = null;
-      socket.close();
+      socket?.close();
     };
   }, []);
 

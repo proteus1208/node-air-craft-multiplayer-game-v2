@@ -1,8 +1,101 @@
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { dirname, extname, join, normalize, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { MAX_LEVEL, fixed, levelStats } from './balance.js';
 
 const port = Number(process.env.PORT ?? 3001);
-const server = new WebSocketServer({ port });
+const clientDist = join(dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+const clientDistRoot = normalize(clientDist + sep);
+const contentTypes = {
+  '.css': 'text/css; charset=utf-8',
+  '.gif': 'image/gif',
+  '.html': 'text/html; charset=utf-8',
+  '.ico': 'image/x-icon',
+  '.jpeg': 'image/jpeg',
+  '.jpg': 'image/jpeg',
+  '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.map': 'application/json; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.png': 'image/png',
+  '.svg': 'image/svg+xml',
+  '.txt': 'text/plain; charset=utf-8',
+  '.wav': 'audio/wav',
+  '.webp': 'image/webp',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
+};
+
+function serveClient(req, res, url) {
+  const requested = decodeURIComponent(url.pathname);
+  const relative = requested === '/' ? 'index.html' : requested.replace(/^\/+/, '');
+  let target = normalize(join(clientDist, relative));
+  if (target !== normalize(clientDist) && !target.startsWith(clientDistRoot)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Forbidden');
+    return;
+  }
+  const fileReady = existsSync(target) && statSync(target).isFile();
+  if (!fileReady) {
+    if (extname(relative)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+      return;
+    }
+    target = join(clientDist, 'index.html');
+    if (!existsSync(target)) {
+      res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Client build missing. Run npm run build.');
+      return;
+    }
+  }
+  const type = contentTypes[extname(target).toLowerCase()] || 'application/octet-stream';
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Cache-Control': target.endsWith(`${sep}index.html`) ? 'no-cache' : 'public, max-age=3600',
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  createReadStream(target).on('error', () => res.destroy()).pipe(res);
+}
+
+function requestListener(req, res) {
+  try {
+    const url = new URL(req.url || '/', 'http://localhost');
+    if (url.pathname === '/health' || url.pathname === '/api/server') {
+      res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('ok');
+      return;
+    }
+    if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) serveClient(req, res, url);
+    else {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('Not found');
+    }
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Bad request');
+  }
+}
+
+const httpServer = createServer(requestListener);
+const server = new WebSocketServer({ noServer: true });
+httpServer.on('upgrade', (request, socket, head) => {
+  const pathname = new URL(request.url || '/', 'http://localhost').pathname;
+  if (pathname !== '/' && pathname !== '/ws' && pathname !== '/api/server') {
+    socket.destroy();
+    return;
+  }
+  server.handleUpgrade(request, socket, head, (ws) => {
+    server.emit('connection', ws, request);
+  });
+});
 
 // A single fixed world is generated when the server starts, then shared with
 // every client that joins this server process.
@@ -70,14 +163,13 @@ function getEffectiveTeamId(player) {
   return player.level >= MAX_LEVEL ? `team:level-${MAX_LEVEL}` : player.teamId;
 }
 
-function mineSlowMultiplier(player, now = Date.now()) {
-  if (!player.mineSlowUntil || now >= player.mineSlowUntil) return 1;
+function mineSlowDepth(player, now = Date.now()) {
+  if (!player.mineSlowUntil || now >= player.mineSlowUntil) return 0;
   const duration = Math.max(1, player.mineSlowDurationMs || 1);
-  const t = Math.max(0, Math.min(1, (now - player.mineSlowStartedAt) / duration));
+  const elapsed = Math.max(0, Math.min(1, (now - player.mineSlowStartedAt) / duration));
   const ramp = 0.3;
-  const depth = t < ramp ? t / ramp : (t > 1 - ramp ? (1 - t) / ramp : 1);
-  const smooth = depth * depth * (3 - 2 * depth);
-  return 1 - 0.5 * smooth;
+  const depth = elapsed < ramp ? elapsed / ramp : (elapsed > 1 - ramp ? (1 - elapsed) / ramp : 1);
+  return depth * depth * (3 - 2 * depth);
 }
 
 function applyMineSlow(player, now, durationMs) {
@@ -88,13 +180,24 @@ function applyMineSlow(player, now, durationMs) {
   player.mineSlowUntil = player.mineSlowStartedAt + durationMs;
 }
 
-function getSpeedKmh(player) {
-  return Math.round(player.speed * mineSlowMultiplier(player));
+function getSpeedKmh(player, now = Date.now()) {
+  const depth = mineSlowDepth(player, now);
+  if (depth <= 0) return Math.round(player.speed);
+  const stats = levelStats(player.level);
+  // Mine slow eases airspeed to minimum / 2. Fast is a 2x activity, so both
+  // together fly at minimum speed. Stored speed still climbs during the boost,
+  // and that 2x top speed is what remains after the slow ends.
+  const slowedTarget = now < player.fastBoostUntil ? stats.minSpeedKmh : stats.minSpeedKmh / 2;
+  return Math.round(player.speed + (slowedTarget - player.speed) * depth);
 }
 
-function planeWorldSpeed(player, stats) {
+function slowedTurnRate(player, stats, now = Date.now()) {
+  return stats.turnRateDegPerSec * (1 - mineSlowDepth(player, now) * 0.5);
+}
+
+function planeWorldSpeed(player, stats, now = Date.now()) {
   const botScale = player.isBot ? fixed('botSpeedMultiplier') : 1;
-  return (getSpeedKmh(player) * fixed('worldSpeedScale') / fixed('kmhToMetersPerSecond')) * botScale;
+  return (getSpeedKmh(player, now) * fixed('worldSpeedScale') / fixed('kmhToMetersPerSecond')) * botScale;
 }
 
 function createSpawnPosition() {
@@ -249,7 +352,7 @@ function getPlayerSnapshot(player, now) {
     y: player.y,
     angle: player.angle,
     speed: player.speed,
-    speedKmh: getSpeedKmh(player),
+    speedKmh: getSpeedKmh(player, now),
     hp: player.hp,
     maxHp: stats.maxHp,
     level: player.level,
@@ -682,11 +785,11 @@ function tick() {
 
     if (player.isBot && player.botAimTargetAngle !== null) {
       const aimTurn = shortestAngleDelta(player.angle, player.botAimTargetAngle);
-      const aimStep = stats.turnRateDegPerSec * delta;
+      const aimStep = slowedTurnRate(player, stats, now) * delta;
       player.angle += Math.max(-aimStep, Math.min(aimStep, aimTurn));
     }
     const yawInput = Number.isFinite(player.input.yaw) ? Math.max(-1, Math.min(1, player.input.yaw)) : Number(Boolean(player.input.right)) - Number(Boolean(player.input.left));
-    player.angle += stats.turnRateDegPerSec * yawInput * delta;
+    player.angle += slowedTurnRate(player, stats, now) * yawInput * delta;
     player.angle = ((player.angle % 360) + 360) % 360;
     const speedChange = stats.speedAccelerationKmhPerSec * delta;
     if (now < player.fastBoostUntil) {
@@ -710,7 +813,7 @@ function tick() {
     const angle = (player.angle * Math.PI) / 180;
     // Map coordinates are pixels, so aircraft cover more than one pixel per
     // real-world meter to keep the displayed airspeed responsive in the world.
-    const worldSpeed = planeWorldSpeed(player, stats);
+    const worldSpeed = planeWorldSpeed(player, stats, now);
     player.x += Math.sin(angle) * worldSpeed * delta;
     player.y -= Math.cos(angle) * worldSpeed * delta;
 
@@ -850,9 +953,12 @@ function tick() {
 
 setInterval(tick, fixed('tickMs'));
 
-server.on('listening', () => {
-  console.log(`WebSocket server listening at ws://localhost:${port}`);
-});
+if (!process.env.VERCEL) {
+  httpServer.listen(port, '0.0.0.0', () => {
+    const mode = process.env.NODE_ENV === 'production' ? `client at http://localhost:${port}` : 'websocket only';
+    console.log(`Game server listening on port ${port} (${mode})`);
+  });
+}
 
 server.on('connection', (socket) => {
   console.log('Client connected');
@@ -914,4 +1020,6 @@ server.on('connection', (socket) => {
   socket.on('error', (error) => console.error('WebSocket error:', error.message));
 });
 
-server.on('error', (error) => console.error('Server error:', error.message));
+httpServer.on('error', (error) => console.error('Server error:', error.message));
+
+export default httpServer;
