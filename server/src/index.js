@@ -87,17 +87,14 @@ function requestListener(req, res) {
 }
 
 const httpServer = createServer(requestListener);
-const server = new WebSocketServer({ noServer: true });
-httpServer.on('upgrade', (request, socket, head) => {
-  const pathname = new URL(request.url || '/', 'http://localhost').pathname;
-  if (pathname !== '/' && pathname !== '/ws' && pathname !== '/api/server') {
-    socket.destroy();
-    return;
+const server = new WebSocketServer({ server: httpServer });
+const sockets = new Set();
+
+function sendToClients(payload) {
+  for (const client of sockets) {
+    if (client.readyState === 1) client.send(payload);
   }
-  server.handleUpgrade(request, socket, head, (ws) => {
-    server.emit('connection', ws, request);
-  });
-});
+}
 
 // A single fixed world is generated when the server starts, then shared with
 // every client that joins this server process.
@@ -405,9 +402,7 @@ function broadcastSnapshot() {
     mines: mines.map(({ id, ownerId, ownerTeamId, x, y, armed, visible, variant }) => ({ id, ownerId, ownerTeamId, x, y, armed, visible, variant })),
     blasts: blasts.map(({ id, x, y, radius }) => ({ id, x, y, radius })),
   });
-  for (const client of server.clients) {
-    if (client.readyState === 1) client.send(snapshot);
-  }
+  sendToClients(snapshot);
 }
 
 function totalExperience(player) {
@@ -1001,9 +996,7 @@ function saveTodayVisitors() {
 function broadcastVisitors() {
   rememberToday();
   const payload = JSON.stringify({ type: 'visitors', today: todayVisitors.ids.size, current: onlineVisitors.size });
-  for (const client of server.clients) {
-    if (client.readyState === 1) client.send(payload);
-  }
+  sendToClients(payload);
 }
 
 function noteVisit(socket, rawId) {
@@ -1033,7 +1026,8 @@ function releaseVisit(socket) {
   broadcastVisitors();
 }
 
-server.on('connection', (socket) => {
+export function handleConnection(socket) {
+  sockets.add(socket);
   console.log('Client connected');
   socket.send(JSON.stringify({ type: 'welcome', message: 'Connected to the game server!' }));
   socket.send(JSON.stringify({ type: 'world', world }));
@@ -1088,6 +1082,7 @@ server.on('connection', (socket) => {
   });
 
   socket.on('close', () => {
+    sockets.delete(socket);
     releaseVisit(socket);
     if (socket.playerId) {
       players.delete(socket.playerId);
@@ -1097,8 +1092,9 @@ server.on('connection', (socket) => {
     console.log('Client disconnected');
   });
   socket.on('error', (error) => console.error('WebSocket error:', error.message));
-});
+}
 
+server.on('connection', handleConnection);
 httpServer.on('error', (error) => console.error('Server error:', error.message));
 
 export default httpServer;
