@@ -555,12 +555,12 @@
       "value": 55
     },
     "blastFrameCount": {
-      "comment": "Number of frames in the explosion animation. The last frame index is this number minus 1.",
-      "value": 12
+      "comment": "Number of frames in the blast1.png explosion sheet. Five columns and three rows, read left to right, top to bottom. The last frame index is this number minus 1.",
+      "value": 15
     },
     "blastDurationMs": {
-      "comment": "An explosion is removed after this many milliseconds.",
-      "value": 660
+      "comment": "An explosion is removed after this many milliseconds. 15 frames at 55 milliseconds each.",
+      "value": 825
     },
     "maxDeltaSeconds": {
       "comment": "Longest simulation step, in seconds. Stops a stall from moving planes too far in one tick.",

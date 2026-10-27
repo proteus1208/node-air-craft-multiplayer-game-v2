@@ -5,32 +5,37 @@ const gearIcon = <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.
 const planeFiles = ['p1.png', 'p4-png.png', 'p3.png', 'p4.png', 'p5.png'];
 const rocketColors = [1, 3, 2, 4, 5];
 const mineColors = [3, 1, 2, 4, 5];
-const blastCenters = [
-  { x: 69, y: 74 }, { x: 156, y: 74 }, { x: 250, y: 75 }, { x: 355, y: 76 },
-  { x: 462, y: 77 }, { x: 579, y: 78 }, { x: 700, y: 79 }, { x: 825, y: 80 },
-  { x: 943, y: 80 }, { x: 1066, y: 81 }, { x: 1186, y: 83 }, { x: 1297, y: 83 },
+const blastSheet = { width: 1620, height: 971 };
+const blastFrames = [
+  { left: 81, top: 114, width: 176, height: 170 },
+  { left: 376, top: 102, width: 208, height: 194 },
+  { left: 695, top: 87, width: 244, height: 224 },
+  { left: 1020, top: 79, width: 254, height: 240 },
+  { left: 1335, top: 59, width: 258, height: 280 },
+  { left: 42, top: 390, width: 254, height: 244 },
+  { left: 351, top: 388, width: 258, height: 248 },
+  { left: 682, top: 384, width: 270, height: 256 },
+  { left: 1019, top: 388, width: 256, height: 248 },
+  { left: 1336, top: 388, width: 256, height: 248 },
+  { left: 41, top: 695, width: 256, height: 240 },
+  { left: 347, top: 695, width: 266, height: 240 },
+  { left: 694, top: 695, width: 246, height: 240 },
+  { left: 1030, top: 705, width: 234, height: 220 },
+  { left: 1371, top: 725, width: 186, height: 180 },
 ];
 
 function blastStyle(blast, cameraScale = 1) {
-  const frameIndex = Math.max(0, Math.min(blastCenters.length - 1, blast.frame ?? 0));
-  const center = blastCenters[frameIndex];
-  const previousGap = frameIndex > 0 ? center.x - blastCenters[frameIndex - 1].x : blastCenters[1].x - center.x;
-  const nextGap = frameIndex < blastCenters.length - 1 ? blastCenters[frameIndex + 1].x - center.x : previousGap;
-  // The neighboring centers define each frame's variable-width crop.
-  const frameWidth = (previousGap + nextGap) / 2;
-  const frameHeight = 154;
+  const frame = blastFrames[Math.max(0, Math.min(blastFrames.length - 1, blast.frame ?? 0))];
   const scale = (blast.scale ?? 0.8) / Math.max(cameraScale, 0.01);
-  const frameLeft = center.x - frameWidth / 2;
-  const frameTop = center.y - frameHeight / 2;
   return {
     left: blast.x,
     top: blast.y,
-    width: frameWidth * scale,
-    height: frameHeight * scale,
-    backgroundImage: "url('/assets/plain/blast.png')",
+    width: frame.width * scale,
+    height: frame.height * scale,
+    backgroundImage: "url('/assets/plain/blast1.png')",
     backgroundRepeat: 'no-repeat',
-    backgroundSize: `${1518 * scale}px ${154 * scale}px`,
-    backgroundPosition: `${-frameLeft * scale}px ${-frameTop * scale}px`,
+    backgroundSize: `${blastSheet.width * scale}px ${blastSheet.height * scale}px`,
+    backgroundPosition: `${-frame.left * scale}px ${-frame.top * scale}px`,
   };
 }
 
