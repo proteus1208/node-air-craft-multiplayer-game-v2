@@ -403,7 +403,7 @@ function broadcastSnapshot() {
     players: [...players.values()].map((player) => getPlayerSnapshot(player, now)),
     rockets: rockets.map(({ id, ownerId, ownerIsBot, ownerTeamId, mineLaunched, x, y, angle, active, variant, trackingTargetId }) => ({ id, ownerId, ownerIsBot, ownerTeamId, mineLaunched: Boolean(mineLaunched), x, y, angle, active, variant, trackingTargetId })),
     mines: mines.map(({ id, ownerId, ownerTeamId, x, y, armed, visible, variant }) => ({ id, ownerId, ownerTeamId, x, y, armed, visible, variant })),
-    blasts: blasts.map(({ id, x, y, frame }) => ({ id, x, y, frame })),
+    blasts: blasts.map(({ id, x, y, radius }) => ({ id, x, y, radius })),
   });
   for (const client of server.clients) {
     if (client.readyState === 1) client.send(snapshot);
@@ -466,8 +466,8 @@ function damagePlayer(victim, damage, ownerId) {
   }
 }
 
-function spawnBlast(x, y, now, scale = 0.8) {
-  blasts.push({ id: `blast-${now}-${Math.random().toString(36).slice(2, 8)}`, x, y, startedAt: now, frame: 0, scale });
+function spawnBlast(x, y, now, radius) {
+  blasts.push({ id: `blast-${now}-${Math.random().toString(36).slice(2, 8)}`, x, y, startedAt: now, frame: 0, radius });
 }
 
 function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDamageEnabled, directHitId = null, healShooter = false, slowDurationMs = 0) {
@@ -881,7 +881,7 @@ function tick() {
     if (impact) {
       const blastRadius = rocket.mineLaunched ? fixed('mineMissileBlastRadius') : fixed('rocketBlastRadius');
       applyBlastDamage(impact.x, impact.y, blastRadius, rocket.damage, rocket.ownerId, rocket.ownerTeamId, rocket.teamDamageEnabled, impact.playerId, true, rocket.mineLaunched ? (rocket.slowDurationMs || 0) : 0);
-      spawnBlast(impact.x, impact.y, now, rocket.mineLaunched ? fixed('mineMissileBlastScale') : fixed('rocketBlastScale'));
+      spawnBlast(impact.x, impact.y, now, blastRadius);
       hit = true;
     }
     if (hit || rocket.distance >= rocket.range || now > rocket.expiresAt) rockets.splice(index, 1);
@@ -909,7 +909,7 @@ function tick() {
         const secondY = secondPath.startY + (secondPath.endY - secondPath.startY) * relativeContact.progress;
         destroyedRocketIds.add(firstRocket.id);
         destroyedRocketIds.add(secondRocket.id);
-        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, fixed('rocketClashBlastScale'));
+        spawnBlast((firstX + secondX) / 2, (firstY + secondY) / 2, now, fixed('rocketBlastRadius'));
       }
     }
   }
@@ -942,7 +942,7 @@ function tick() {
     }
     if (now >= mine.expiresAt) {
       applyBlastDamage(mine.x, mine.y, fixed('mineExpireRadius'), mine.damage * fixed('mineExpireDamageRatio'), mine.ownerId, mine.ownerTeamId, mine.teamDamageEnabled, null, false, mine.slowDurationMs || 0);
-      spawnBlast(mine.x, mine.y, now, fixed('mineExpireBlastScale'));
+      spawnBlast(mine.x, mine.y, now, fixed('mineExpireRadius'));
       mines.splice(index, 1);
     }
   }
