@@ -81,7 +81,7 @@
     "rocketTrackingConeDeg": {
       "comment": "Half-angle of the forward view, in degrees. Straight ahead is 0. The rocket only considers planes between -this and +this.",
       "level1": 15,
-      "level15": 45
+      "level15": 30
     },
     "rocketTrackingRange": {
       "comment": "How far a rocket can see a target to home in, in world pixels.",
@@ -90,8 +90,8 @@
     },
     "rocketTurnRateDegPerSec": {
       "comment": "How fast a homing rocket can turn, in degrees per second.",
-      "level1": 5,
-      "level15": 15
+      "level1": 20,
+      "level15": 40
     },
     "mineCapacity": {
       "comment": "How many mines you can hold.",
@@ -340,7 +340,7 @@
     },
     "botCount": {
       "comment": "How many bots the server keeps in the world.",
-      "value": 10
+      "value": 5
     },
     "botSpawnWeights": {
       "comment": "Chance weight for a new bot's level. The first number is level 1. Current weights are 40, 30, 20, 10 for levels 1 through 4.",
