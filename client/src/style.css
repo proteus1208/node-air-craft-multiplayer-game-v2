@@ -82,6 +82,8 @@ button { font: inherit; }
 .top-actions__button:focus-visible, .settings-panel button:focus-visible { outline: 3px solid #fff2a8; outline-offset: 4px; }
 .top-actions__button--muted { background: linear-gradient(180deg, rgb(94 139 164 / 88%), rgb(39 73 101 / 94%)); color: rgb(236 246 252 / 78%); }
 .top-actions__button svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.top-actions__vote { display: flex; width: auto; min-width: 48px; align-items: center; justify-content: center; padding: 0 12px; gap: 6px; color: #fff; font-size: 15px; font-weight: 900; text-decoration: none; }
+.top-actions__votes { min-width: 1.2em; padding: 1px 6px; border-radius: 999px; background: rgb(255 255 255 / 24%); font-size: 11px; letter-spacing: 0; line-height: 1.4; }
 
 .settings-panel {
   position: relative;
@@ -442,6 +444,7 @@ a.menu__button { text-decoration: none; }
 /* Scale all flight HUD panels from the measured game viewport width together. */
 .game-toolbar__back,
 .game-toolbar__settings,
+.game-toolbar__sound,
 .flight-hud,
 .speed-board,
 .weapon-board,
@@ -549,6 +552,7 @@ a.menu__button { text-decoration: none; }
   .landing { background-position: 54% center; }
   .top-actions { top: max(14px, env(safe-area-inset-top)); right: max(14px, env(safe-area-inset-right)); gap: 8px; }
   .top-actions__button { width: 43px; height: 43px; border-radius: 14px; }
+  .top-actions__vote { width: auto; height: 43px; padding: 0 10px; font-size: 13px; }
   .landing__content { width: min(100% - 42px, 390px); padding-top: 30px; padding-bottom: 42px; transform: translateY(-1vh); }
   .landing__logo { width: min(100%, 410px); margin-bottom: 18px; }
   .menu { width: min(100%, 310px); gap: 12px; }
@@ -714,7 +718,14 @@ a.menu__button { text-decoration: none; }
 .game-settings-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgb(5 23 39 / 64%); backdrop-filter: blur(7px); }
 .game-settings-backdrop .settings-panel { z-index: 1; max-height: min(770px, calc(100svh - 40px)); }
 .aircraft-entity .map-player::before { position: absolute; z-index: -1; inset: 0; border-radius: inherit; background-image: var(--aircraft-image); background-position: center; background-size: 100% 100%; content: ''; opacity: .1; filter: grayscale(1); transform: translate(8px, 12px); pointer-events: none; }
-.world-blast { z-index: 4; pointer-events: none; }
+.world-blast {
+  z-index: 4;
+  border-radius: 50%;
+  background: radial-gradient(circle, transparent 0 34%, rgb(255 70 30 / 18%) 48%, rgb(255 24 12 / 78%) 62%, rgb(255 120 30 / 28%) 74%, transparent 88%);
+  filter: blur(2px);
+  box-shadow: 0 0 18px rgb(255 30 10 / 42%);
+  pointer-events: none;
+}
 .danger-overlay { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; transition: opacity 140ms linear; }
 
 .speed-board {
@@ -1082,3 +1093,9 @@ a.menu__button { text-decoration: none; }
 }
 .game-screen--mobile .weapon-board__ammo { gap: 0; }
 .mini-map__view { display: none !important; }
+
+.game-toolbar__sound { position: absolute; top: max(18px, env(safe-area-inset-top)); right: calc(max(20px, env(safe-area-inset-right)) + 112px); pointer-events: auto; }
+@media (max-width: 560px) {
+  .game-toolbar__sound { top: max(12px, env(safe-area-inset-top)); right: calc(max(12px, env(safe-area-inset-right)) + 104px); width: 40px; height: 40px; }
+}
+.game-screen--mobile .game-toolbar__sound { top: max(10px, env(safe-area-inset-top)); right: calc(max(10px, env(safe-area-inset-right)) + 96px); width: 40px; height: 40px; }

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Game from './Game.jsx';
+import SoundButton from './SoundButton.jsx';
+import { setSoundEnabled, startBackground } from './audio.js';
 
 const configuredWebSocketUrl = import.meta.env.VITE_WEBSOCKET_URL;
 function resolveWebSocketUrl() {
@@ -27,13 +29,6 @@ function formatVoteCount(count) {
   }
   return `${rounded}${units[unit]}`;
 }
-
-const actions = [
-  { label: 'Play', icon: '▶', variant: 'primary', description: 'Start a multiplayer flight' },
-  { label: 'Train', icon: '✦', variant: 'secondary', description: 'Practice your flying' },
-  { label: 'Help', icon: '?', variant: 'secondary', description: 'Learn how to play' },
-  { label: 'Vote', icon: '★', variant: 'secondary', description: 'Star this game on GitHub', href: githubVoteUrl },
-];
 
 const defaultControls = {
   left: 'A',
@@ -160,8 +155,11 @@ export default function App() {
 
   const toggleSound = () => {
     setSoundOn((current) => {
-      localStorage.setItem('airplain-sound', current ? 'off' : 'on');
-      return !current;
+      const next = !current;
+      localStorage.setItem('airplain-sound', next ? 'on' : 'off');
+      setSoundEnabled(next);
+      if (next) startBackground();
+      return next;
     });
   };
 
@@ -173,6 +171,17 @@ export default function App() {
     setPlayerName(name);
     setNameModalOpen(false);
   };
+
+  useEffect(() => {
+    setSoundEnabled(soundOn);
+    const unlock = () => startBackground();
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, [soundOn]);
 
   useEffect(() => {
     let cancelled = false;
@@ -248,6 +257,8 @@ export default function App() {
         teamDamageEnabled={teamDamageEnabled}
         sendMessage={sendGameMessage}
         settingsOpen={settingsOpen}
+        soundOn={soundOn}
+        onToggleSound={toggleSound}
         onBack={() => { sendGameMessage({ type: 'leave' }); setSettingsOpen(false); setGamePage(false); }}
         onSettings={() => { setSettingsOpen(true); setListeningFor(''); setKeyError(''); }}
       />
@@ -269,9 +280,12 @@ export default function App() {
     <main className="landing" aria-label="Air Plain Multiplayer">
       <div className="landing__shade" aria-hidden="true" />
       <div className="top-actions" aria-label="Quick settings">
-        <button className={`top-actions__button ${soundOn ? '' : 'top-actions__button--muted'}`} type="button" onClick={toggleSound} aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'} aria-pressed={soundOn} title={soundOn ? 'Sound on' : 'Sound off'}>
-          {soundOn ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M16 9a5 5 0 0 1 0 6M18.5 6.5a9 9 0 0 1 0 11" /></svg> : <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="m17 9 5 6m0-6-5 6" /></svg>}
-        </button>
+        <a className="top-actions__button top-actions__vote" href={githubVoteUrl} target="_blank" rel="noopener noreferrer" aria-label={voteCount !== null ? `Vote: star this game on GitHub, ${formatVoteCount(voteCount)} stars` : 'Vote: star this game on GitHub'} title="Star this game on GitHub">
+          <span aria-hidden="true">★</span>
+          <span>Vote</span>
+          {voteCount !== null && <span className="top-actions__votes">{formatVoteCount(voteCount)}</span>}
+        </a>
+        <SoundButton soundOn={soundOn} onClick={toggleSound} />
         <button className="top-actions__button" type="button" onClick={() => { setSettingsOpen(true); setListeningFor(''); setKeyError(''); }} aria-label="Open settings" title="Settings">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.95l-.36-2.54A.49.49 0 0 0 13.88 2h-3.76a.49.49 0 0 0-.49.42L9.27 4.96c-.6.24-1.14.56-1.63.95l-2.39-.96a.5.5 0 0 0-.61.22L2.72 8.49a.5.5 0 0 0 .12.64l2.03 1.58a6.5 6.5 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.21.37.3.61.22l2.39-.96c.49.39 1.03.71 1.63.95l.36 2.54c.03.24.24.42.49.42h3.76c.25 0 .46-.18.49-.42l.36-2.54c.6-.24 1.14-.56 1.63-.95l2.39.96c.24.09.49 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>
         </button>
@@ -292,18 +306,11 @@ export default function App() {
         </p>}
 
         <nav className="menu" aria-label="Main menu">
-          {actions.map(({ label, icon, variant, description, href }) => {
-            const className = `menu__button menu__button--${variant}`;
-            const votes = label === 'Vote' && voteCount !== null ? formatVoteCount(voteCount) : '';
-            const content = <>
-              <span className="menu__icon" aria-hidden="true">{icon}</span>
-              <span>{label}</span>
-              {votes && <span className="menu__votes">{votes}</span>}
-              <span className="menu__shine" aria-hidden="true" />
-            </>;
-            if (href) return <a className={className} key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={votes ? `${label}: ${description}, ${votes} stars` : `${label}: ${description}`}>{content}</a>;
-            return <button className={className} key={label} type="button" aria-label={`${label}: ${description}`} onClick={label === 'Play' ? () => setGamePage(true) : undefined}>{content}</button>;
-          })}
+          <button className="menu__button menu__button--primary" type="button" aria-label="Play: Start a multiplayer flight" onClick={() => setGamePage(true)}>
+            <span className="menu__icon" aria-hidden="true">▶</span>
+            <span>Play</span>
+            <span className="menu__shine" aria-hidden="true" />
+          </button>
         </nav>
 
         <div className="visitors" aria-live="polite" aria-label="Visitor counts">

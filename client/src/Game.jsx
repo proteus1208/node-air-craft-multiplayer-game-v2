@@ -1,41 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
+import SoundButton from './SoundButton.jsx';
+import { playEffect } from './audio.js';
 
 const gearIcon = <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.62.06-.94s-.02-.63-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.95l-.36-2.54A.49.49 0 0 0 13.88 2h-3.76a.49.49 0 0 0-.49.42L9.27 4.96c-.6.24-1.14.56-1.63.95l-2.39-.96a.5.5 0 0 0-.61.22L2.72 8.49a.5.5 0 0 0 .12.64l2.03 1.58a6.5 6.5 0 0 0 0 1.88l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.12.21.37.3.61.22l2.39-.96c.49.39 1.03.71 1.63.95l.36 2.54c.03.24.24.42.49.42h3.76c.25 0 .46-.18.49-.42l.36-2.54c.6-.24 1.14-.56 1.63-.95l2.39.96c.24.09.49 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.58ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg>;
 
 const planeFiles = ['p1.png', 'p4-png.png', 'p3.png', 'p4.png', 'p5.png'];
 const rocketColors = [1, 3, 2, 4, 5];
 const mineColors = [3, 1, 2, 4, 5];
-const blastSheet = { width: 1620, height: 971 };
-const blastFrames = [
-  { left: 81, top: 114, width: 176, height: 170 },
-  { left: 376, top: 102, width: 208, height: 194 },
-  { left: 695, top: 87, width: 244, height: 224 },
-  { left: 1020, top: 79, width: 254, height: 240 },
-  { left: 1335, top: 59, width: 258, height: 280 },
-  { left: 42, top: 390, width: 254, height: 244 },
-  { left: 351, top: 388, width: 258, height: 248 },
-  { left: 682, top: 384, width: 270, height: 256 },
-  { left: 1019, top: 388, width: 256, height: 248 },
-  { left: 1336, top: 388, width: 256, height: 248 },
-  { left: 41, top: 695, width: 256, height: 240 },
-  { left: 347, top: 695, width: 266, height: 240 },
-  { left: 694, top: 695, width: 246, height: 240 },
-  { left: 1030, top: 705, width: 234, height: 220 },
-  { left: 1371, top: 725, width: 186, height: 180 },
-];
-
 function blastStyle(blast, cameraScale = 1) {
-  const frame = blastFrames[Math.max(0, Math.min(blastFrames.length - 1, blast.frame ?? 0))];
+  const progress = Math.max(0, Math.min(1, (blast.frame ?? 0) / 14));
   const scale = (blast.scale ?? 0.8) / Math.max(cameraScale, 0.01);
+  const size = (110 + progress * 190) * scale;
+  const opacity = progress < 0.12 ? progress / 0.12 : 1 - ((progress - 0.12) / 0.88) * 0.92;
   return {
     left: blast.x,
     top: blast.y,
-    width: frame.width * scale,
-    height: frame.height * scale,
-    backgroundImage: "url('/assets/plain/blast1.png')",
-    backgroundRepeat: 'no-repeat',
-    backgroundSize: `${blastSheet.width * scale}px ${blastSheet.height * scale}px`,
-    backgroundPosition: `${-frame.left * scale}px ${-frame.top * scale}px`,
+    width: size,
+    height: size,
+    opacity: Math.max(0.08, opacity),
   };
 }
 
@@ -117,7 +99,7 @@ function compactKey(key) {
   return key.length > 3 ? key.slice(0, 3).toUpperCase() : key.toUpperCase();
 }
 
-export default function Game({ world, playerName, playerId, gameState, controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false }) {
+export default function Game({ world, playerName, playerId, gameState, controls, teamCode, teamDamageEnabled, sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
   const heldKeys = useRef(new Set());
   const weaponReadyRef = useRef({ rocket: true, mine: true });
   const touchAnalog = useRef({ yaw: 0, throttle: 0 });
@@ -126,6 +108,8 @@ export default function Game({ world, playerName, playerId, gameState, controls,
   const [weaponPress, setWeaponPress] = useState({ type: '', serial: 0 });
   const [ammoRechargePulse, setAmmoRechargePulse] = useState({ rocket: 0, mine: 0 });
   const previousAmmo = useRef(null);
+  const heardWeapons = useRef(null);
+  const lastEffectAt = useRef({ rocket: 0, blast: 0 });
   const [touchMode] = useState(detectTouchMode);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [mobileStick, setMobileStick] = useState({ x: 0, y: 0 });
@@ -199,6 +183,40 @@ export default function Game({ world, playerName, playerId, gameState, controls,
     setMobileStick({ x: 0, y: 0 });
     sendMessage({ type: 'input', input: inputState() });
   };
+
+  useEffect(() => {
+    if (!gameState) return;
+    const rockets = (gameState.rockets ?? []).filter((rocket) => rocket.active && !rocket.mineLaunched);
+    const blasts = gameState.blasts ?? [];
+    const heard = heardWeapons.current;
+    if (!heard) {
+      heardWeapons.current = {
+        rockets: new Set(rockets.map((rocket) => rocket.id)),
+        blasts: new Set(blasts.map((blast) => blast.id)),
+      };
+      return;
+    }
+    const now = performance.now();
+    for (const rocket of rockets) {
+      if (heard.rockets.has(rocket.id)) continue;
+      heard.rockets.add(rocket.id);
+      const ownRocket = rocket.ownerId === playerId;
+      if (!ownRocket && now - lastEffectAt.current.rocket < 320) continue;
+      lastEffectAt.current.rocket = now;
+      playEffect('rocket', ownRocket ? 0.62 : 0.32);
+    }
+    for (const blast of blasts) {
+      if (heard.blasts.has(blast.id)) continue;
+      heard.blasts.add(blast.id);
+      if (now - lastEffectAt.current.blast < 220) continue;
+      lastEffectAt.current.blast = now;
+      playEffect('blast', 0.74);
+    }
+    const rocketIds = new Set(rockets.map((rocket) => rocket.id));
+    const blastIds = new Set(blasts.map((blast) => blast.id));
+    for (const id of heard.rockets) if (!rocketIds.has(id)) heard.rockets.delete(id);
+    for (const id of heard.blasts) if (!blastIds.has(id)) heard.blasts.delete(id);
+  }, [gameState, playerId]);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -466,6 +484,7 @@ export default function Game({ world, playerName, playerId, gameState, controls,
             <div className="flight-hud__track"><span className="flight-hud__progress" style={{ width: `${experienceProgress}%` }} /></div>
           </div>
         </section>
+        <SoundButton className="game-toolbar__sound" soundOn={soundOn} onClick={onToggleSound} />
         <button className="top-actions__button game-toolbar__settings" type="button" onClick={onSettings} aria-label="Open settings" title="Settings">{gearIcon}</button>
       </header>
 
