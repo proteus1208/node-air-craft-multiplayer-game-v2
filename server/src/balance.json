@@ -120,13 +120,13 @@
     },
     "fastDurationMs": {
       "comment": "How long the speed boost lasts, in milliseconds.",
-      "level1": 3000,
-      "level15": 5000
+      "level1": 4000,
+      "level15": 8000
     },
     "fastCooldownMs": {
       "comment": "How long you wait before the speed boost can be used again, in milliseconds. The wait starts when the boost starts.",
       "level1": 10000,
-      "level15": 5000
+      "level15": 10000
     }
   },
   "fixed": {
