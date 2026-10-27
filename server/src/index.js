@@ -5,6 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { MAX_LEVEL, fixed, levelStats } from './balance.js';
 
+if (process.argv.includes('--serve-client')) process.env.NODE_ENV = 'production';
+
 const port = Number(process.env.PORT ?? 3001);
 const clientDist = join(dirname(fileURLToPath(import.meta.url)), '../../client/dist');
 const clientDistRoot = normalize(clientDist + sep);
