@@ -166,11 +166,14 @@ function createWorld() {
 
 const huntByRoom = new Map();
 const crownByRoom = new Map();
+const monsterIdsByRoom = new Map();
 const VIRTUAL_TEAM_ID = 'team:united';
+const BOT_PACK_ID = 'team:bots';
 
 function refreshHuntState() {
   huntByRoom.clear();
   crownByRoom.clear();
+  monsterIdsByRoom.clear();
   const grouped = new Map();
   for (const player of players.values()) {
     const key = player.roomId || '';
@@ -181,6 +184,8 @@ function refreshHuntState() {
   for (const [key, roomPlayers] of grouped) {
     const ranked = [...roomPlayers].sort((a, b) => b.level - a.level || b.kills - a.kills || b.score - a.score || (a.id < b.id ? -1 : 1));
     if (ranked.length) crownByRoom.set(key, ranked[0].id);
+    const monsters = roomPlayers.filter((player) => player.level >= MAX_LEVEL);
+    if (monsters.length) monsterIdsByRoom.set(key, new Set(monsters.map((player) => player.id)));
     const humanAces = roomPlayers.filter((player) => !player.isBot && player.level >= MAX_LEVEL);
     if (!humanAces.length) continue;
     const bossTeams = new Set();
@@ -205,7 +210,11 @@ function playerMark(player) {
 }
 
 function getEffectiveTeamId(player) {
-  if (player.isBot) return player.teamId;
+  if (player.isBot) {
+    const monsters = monsterIdsByRoom.get(player.roomId || '');
+    if (monsters?.size && !monsters.has(player.id)) return BOT_PACK_ID;
+    return player.teamId;
+  }
   const hunt = huntByRoom.get(player.roomId || '');
   if (!hunt) return player.teamId;
   if (player.level >= MAX_LEVEL) return player.teamId;
@@ -1012,13 +1021,32 @@ function stepWorld(now, delta) {
         if (action.type === 'mine') dropMine(player, now);
       }
       let target = player.botTargetId ? players.get(player.botTargetId) : null;
-      if (player.botTargetId && (!target || target.id === player.id || target.hp <= 0 || !sameRoom(target.roomId, player.roomId) || !canTargetPlayer(target) || now >= player.botTargetExpiresAt)) {
+      const monsters = monsterIdsByRoom.get(player.roomId || '');
+      if (player.botTargetId && (!target || target.id === player.id || target.hp <= 0 || !sameRoom(target.roomId, player.roomId) || !canTargetPlayer(target) || (monsters?.size && !monsters.has(target.id)) || now >= player.botTargetExpiresAt)) {
         player.botTargetId = null;
         player.botTargetExpiresAt = 0;
         player.botNextTargetAt = now + fixed('botRetargetMs');
         target = null;
       }
-      if (!target && now >= player.botNextTargetAt) {
+      if (monsters?.size && !monsters.has(player.id)) {
+        if (!target || !monsters.has(target.id)) {
+          let nearest = null;
+          let nearestDistance = Infinity;
+          for (const candidate of players.values()) {
+            if (!monsters.has(candidate.id) || candidate.hp <= 0 || candidate.id === player.id || !sameRoom(candidate.roomId, player.roomId)) continue;
+            const distance = Math.hypot(candidate.x - player.x, candidate.y - player.y);
+            if (distance < nearestDistance) {
+              nearest = candidate;
+              nearestDistance = distance;
+            }
+          }
+          target = nearest;
+          if (target) {
+            player.botTargetId = target.id;
+            player.botTargetExpiresAt = now + fixed('botLockMs');
+          }
+        }
+      } else if (!target && now >= player.botNextTargetAt) {
         const nearbyBots = [...players.values()].filter((candidate) => {
           return candidate.isBot && candidate.id !== player.id && candidate.hp > 0 && sameRoom(candidate.roomId, player.roomId) && canTargetPlayer(candidate) && Math.hypot(candidate.x - player.x, candidate.y - player.y) <= fixed('botSightRange');
         });
