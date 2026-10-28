@@ -276,6 +276,22 @@ function createSpawnPosition(roomId = null) {
   return { x: margin + Math.random() * (world.width - margin * 2), y: margin + Math.random() * (world.height - margin * 2) };
 }
 
+function teammateSpawnPosition(player) {
+  if (!player.teamId || player.isBot) return null;
+  const mates = [...players.values()].filter((other) => other.id !== player.id && !other.isBot && other.hp > 0 && other.teamId === player.teamId && sameRoom(other.roomId, player.roomId));
+  if (!mates.length) return null;
+  const topLevel = Math.max(...mates.map((other) => other.level));
+  const anchors = mates.filter((other) => other.level === topLevel);
+  const anchor = anchors[Math.floor(Math.random() * anchors.length)];
+  const distance = Math.random() * fixed('respawnNearTeammateDistance');
+  const angle = Math.random() * Math.PI * 2;
+  const margin = fixed('spawnEdgeMargin');
+  return {
+    x: Math.max(margin, Math.min(world.width - margin, anchor.x + Math.cos(angle) * distance)),
+    y: Math.max(margin, Math.min(world.height - margin, anchor.y + Math.sin(angle) * distance)),
+  };
+}
+
 function chooseBotSpawnLevel() {
   const weights = fixed('botSpawnWeights');
   let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
@@ -352,7 +368,7 @@ function respawnPlayer(player) {
   }
   player.respawnExperience = 0;
   const stats = levelStats(player.level);
-  const position = createSpawnPosition();
+  const position = teammateSpawnPosition(player) || createSpawnPosition(player.roomId);
   player.x = position.x;
   player.y = position.y;
   player.angle = Math.random() * 360;
@@ -657,7 +673,8 @@ function broadcastSnapshot() {
       if ((player.roomId || '') !== key) continue;
       const outOfMap = player.x < 0 || player.y < 0 || player.x > world.width || player.y > world.height;
       const flags = (player.invulnerableUntil > now ? 1 : 0) | (outOfMap ? 2 : 0);
-      playerRows.push([player.id, round1(player.x), round1(player.y), round1(player.angle), player.hp > 0 ? Math.ceil(player.hp) : 0, flags]);
+      const guardMs = Math.max(0, player.invulnerableUntil - now);
+      playerRows.push([player.id, round1(player.x), round1(player.y), round1(player.angle), player.hp > 0 ? Math.ceil(player.hp) : 0, flags, guardMs]);
     }
     const rocketRows = [];
     for (const rocket of rockets) {
@@ -1381,7 +1398,7 @@ export function handleConnection(socket) {
   sockets.add(socket);
   console.log('Client connected');
   socket.send(JSON.stringify({ type: 'welcome', message: 'Connected to the game server!' }));
-  socket.send(JSON.stringify({ type: 'world', world }));
+  socket.send(JSON.stringify({ type: 'world', world, guardMs: fixed('spawnInvulnerableMs') }));
   broadcastVisitors();
 
   socket.on('message', (rawMessage) => {

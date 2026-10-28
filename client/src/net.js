@@ -82,7 +82,7 @@ function noteClock(net, serverTime, arrival) {
   net.stats.bufferMs = Math.round(clamp(clock.interval * 2 + clock.jitter, MIN_BUFFER_MS, MAX_BUFFER_MS));
 }
 
-function playerFromRow(net, [id, x, y, angle, hp, flags]) {
+function playerFromRow(net, [id, x, y, angle, hp, flags, guardMs]) {
   const meta = net.meta.get(id);
   return {
     id,
@@ -102,7 +102,7 @@ function playerFromRow(net, [id, x, y, angle, hp, flags]) {
     mark: meta?.mark || '',
     planeTier: meta?.planeTier,
     spawnedAt: meta?.spawnedAt ?? 0,
-    spawnProtectionRemainingMs: flags & 1 ? 1 : 0,
+    spawnProtectionRemainingMs: Number.isFinite(guardMs) ? guardMs : (flags & 1 ? 1 : 0),
     outOfMap: Boolean(flags & 2),
   };
 }

@@ -326,6 +326,10 @@
       "comment": "Milliseconds before a destroyed plane respawns.",
       "value": 5000
     },
+    "respawnNearTeammateDistance": {
+      "comment": "A team member respawns at a random distance, up to this many world pixels, from the highest-level living teammate.",
+      "value": 300
+    },
     "spawnInvulnerableMs": {
       "comment": "Milliseconds after spawn when you cannot fire, drop mines, or take damage.",
       "value": 3000

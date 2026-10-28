@@ -243,7 +243,7 @@ export default function App() {
       lastStructure = structure;
       lastPublishAt = now;
       const ownId = flightRef.current?.id;
-      const players = net.hud && ownId ? decoded.players.map((player) => (player.id === ownId ? { ...player, ...net.hud, x: player.x, y: player.y, angle: player.angle, hp: player.hp, level: player.level, kills: player.kills, score: player.score, name: player.name, teamId: player.teamId, teamName: player.teamName, teamColor: player.teamColor, mark: player.mark } : player)) : decoded.players;
+      const players = net.hud && ownId ? decoded.players.map((player) => (player.id === ownId ? { ...player, ...net.hud, x: player.x, y: player.y, angle: player.angle, hp: player.hp, level: player.level, kills: player.kills, score: player.score, name: player.name, teamId: player.teamId, teamName: player.teamName, teamColor: player.teamColor, mark: player.mark, spawnProtectionRemainingMs: player.spawnProtectionRemainingMs } : player)) : decoded.players;
       setGameState({ ...decoded, players, hunt: net.hunt || '' });
     };
 
@@ -289,7 +289,7 @@ export default function App() {
         }
       }
       else if (data.type === 'welcome') setWelcome(data.message);
-      else if (data.type === 'world') setWorld(data.world);
+      else if (data.type === 'world') setWorld({ ...data.world, guardMs: data.guardMs || 3000 });
       else if (data.type === 'visitors' && Number.isFinite(data.today) && Number.isFinite(data.current)) setVisitors({ today: data.today, current: data.current });
     };
 
