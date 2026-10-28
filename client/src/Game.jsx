@@ -565,9 +565,9 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
             : <div className="map-object map-sprite" key={object.id} style={spriteImageStyle(object, cameraScale)} aria-hidden="true" />)}
           {(world.clouds ?? []).map((cloud, index) => <div className="map-object map-cloud" key={cloud.id} style={{ ...spriteImageStyle(cloud, cameraScale), left: cloud.x, top: cloud.y, animationDuration: `${14 + cloud.variant * 1.6}s, ${20 + cloud.variant * 2}s`, animationDelay: `${-index * 1.7}s, ${-index * 3.4}s` }} aria-hidden="true" />)}
           {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <div className={`aircraft-entity ${player.id === playerId ? 'aircraft-entity--self' : (player.isBot ? 'aircraft-entity--bot' : '')} ${player.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected' : ''} ${trackedTargetIds.has(player.id) ? 'aircraft-entity--tracked' : ''}`} key={player.id} ref={entityRef('players', player.id)} style={hiddenUntilPlaced}>
-            {ownPlayer.teamId && player.teamId === ownPlayer.teamId && <i className="aircraft-team-ring" style={{ width: teamRingSize(cameraScale), height: teamRingSize(cameraScale) }} aria-hidden="true" />}
+            {ownPlayer.teamId && player.teamId === ownPlayer.teamId && player.id !== playerId && <i className="aircraft-team-ring" style={{ width: teamRingSize(cameraScale), height: teamRingSize(cameraScale) }} aria-hidden="true" />}
             <div className="aircraft-tag" style={{ zoom: 1 / cameraScale }}>
-              <strong><span className="aircraft-tag__level">LV {player.level}</span><span>{player.name}</span></strong>
+              <strong><span className="aircraft-tag__level">LV {player.level}</span><span style={player.teamColor ? { color: player.teamColor } : undefined}>{player.name}</span></strong>
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
             </div>
             <div className="map-player" style={aircraftStyle(player, cameraScale)} role="img" aria-label={`Plane for ${player.name}`} />
@@ -578,9 +578,8 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
           {(stateForDisplay?.blasts ?? []).map((blast) => <i className="map-object world-blast" key={blast.id} style={blastStyle(blast)} aria-hidden="true" />)}
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
         {world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
-          {ownPlayer.teamId && <i className="aircraft-team-ring" style={{ width: teamRingSize(1), height: teamRingSize(1) }} aria-hidden="true" />}
           <div className="aircraft-tag">
-            <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span>{ownPlayer.name}</span></strong>
+            <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span style={ownPlayer.teamColor ? { color: ownPlayer.teamColor } : undefined}>{ownPlayer.name}</span></strong>
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
           </div>
           <div className="map-player" ref={ownPlaneRef} style={aircraftStyle(ownPlayer)} role="img" aria-label={'Plane for ' + ownPlayer.name} />
