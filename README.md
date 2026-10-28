@@ -1,6 +1,30 @@
-# Air Plain Multiplayer
+<p align="center">
+  <img src="docs/Landing.png" alt="Air Plain Multiplayer menu, with fighter planes over floating islands" width="100%">
+</p>
 
-Minimal Node.js + React + WebSocket starter.
+<h1 align="center">Air Plain Multiplayer</h1>
+
+<p align="center">
+  <strong>Climb in. Pick a side. Light up the sky.</strong><br>
+  A realtime dogfight in the browser. Rockets, mines, teams, and a world full of other pilots.
+</p>
+
+<p align="center">
+  <a href="https://node-air-craft-multiplayer-game-v2.vercel.app"><strong>▶ Play now</strong></a>
+</p>
+
+<p align="center">
+  <img src="docs/playing.gif" alt="A live flight with ranking, air speed, rockets, mines, and the world map" width="100%">
+</p>
+
+<p align="center"><em>One sky. Every pilot on the map. Your team in its own color.</em></p>
+
+## What you fly
+
+- **Drop straight into a match**, or open a private room and send the link.
+- **Team A, Team B, solo, or your own squad.** Teammates show up in the team color, on the name and on the world map.
+- **Rockets, mines, and a fast boost.** Level up, climb the ranking, and keep the plane in the air.
+- **A world map that stays readable** while you fly underneath it.
 
 ## Run locally
 
@@ -25,6 +49,7 @@ Vercel pins each socket to one function instance and closes it at the plan durat
 
 ## Project layout
 
-- `server/src/` — WebSocket server and future game/room modules.
-- `client/src/` — React interface and future game/network modules.
-- `client/public/assets/` — place images, audio, and other static game assets here.
+- `server/src/` — WebSocket server, rooms, teams, and combat.
+- `client/src/` — React flight view, menu, and network client.
+- `client/public/assets/` — images, audio, and other static game assets.
+- `docs/` — the menu still and the flight clip used above.

@@ -701,9 +701,9 @@ a.menu__button { text-decoration: none; }
 .mini-map__dot--pool { background: #16ceff; box-shadow: 0 0 4px #7ce8ff; }
 .mini-map__dot--rock { background: #9aa2a1; }
 .mini-map__dot--flower { background: #ff70c1; }
-.mini-map__player { position: absolute; z-index: 3; left: 50%; top: 50%; width: 9px; height: 9px; border: 2px solid white; border-radius: 50%; background: #ffac35; box-shadow: 0 0 0 3px rgb(255 172 53 / 30%), 0 0 8px #fff; transform: translate(-50%, -50%); }
+.mini-map__player { position: absolute; z-index: 3; left: 50%; top: 50%; width: 9px; height: 9px; border: 2px solid white; border-radius: 50%; background: var(--map-dot, #ffac35); box-shadow: 0 0 0 3px color-mix(in srgb, var(--map-dot, #ffac35) 30%, transparent), 0 0 8px #fff; transform: translate(-50%, -50%); }
 .mini-map__view { position: absolute; z-index: 2; left: 50%; top: 50%; width: 16%; height: 16%; border: 1px solid rgb(255 255 255 / 83%); border-radius: 3px; box-shadow: 0 0 0 1px rgb(16 64 83 / 45%); transform: translate(-50%, -50%); }
-.mini-map__other-player { position: absolute; z-index: 2; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: #ed5b77; box-shadow: 0 0 5px #ff8395; transform: translate(-50%, -50%); }
+.mini-map__other-player { position: absolute; z-index: 2; width: 6px; height: 6px; border: 1px solid white; border-radius: 50%; background: var(--map-dot, #ed5b77); box-shadow: 0 0 5px var(--map-dot, #ff8395); transform: translate(-50%, -50%); }
 
 /* The supplied ground tile is the foliage source; keep these canopy patches small. */
 .map-tree { z-index: 1; border: 1px solid rgb(83 126 45 / 35%); border-radius: 46% 54% 48% 52%; background-image: url('/assets/ground pattern.png'); background-size: 760px 760px; background-position: var(--tree-x) var(--tree-y); box-shadow: 0 2px 5px rgb(19 47 22 / 40%); filter: drop-shadow(0 2px 2px rgb(16 42 20 / 30%)); }

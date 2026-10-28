@@ -673,8 +673,8 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       {world && <aside className="mini-map" aria-label="Full map overview">
         <div className="mini-map__label">WORLD MAP</div>
         <div className="mini-map__surface">
-          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <i className={`mini-map__other-player ${player.isBot ? 'mini-map__other-player--bot' : ''}`} key={player.id} style={{ left: `${(player.x / world.width) * 100}%`, top: `${(player.y / world.height) * 100}%` }} />)}
-          <i className="mini-map__player" ref={miniPlayerRef} />
+          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <i className={`mini-map__other-player ${player.isBot ? 'mini-map__other-player--bot' : ''}`} key={player.id} style={{ left: `${(player.x / world.width) * 100}%`, top: `${(player.y / world.height) * 100}%`, ...(!player.isBot && player.teamColor ? { '--map-dot': player.teamColor } : {}) }} />)}
+          <i className="mini-map__player" ref={miniPlayerRef} style={ownPlayer.teamColor ? { '--map-dot': ownPlayer.teamColor } : undefined} />
           <span className="mini-map__view" ref={miniViewRef} aria-hidden="true" style={{ width: `${miniMapViewWidth}%`, height: `${miniMapViewHeight}%` }} />
         </div>
       </aside>}
