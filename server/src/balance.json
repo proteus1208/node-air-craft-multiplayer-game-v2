@@ -144,7 +144,7 @@
     },
     "botDamageMultiplier": {
       "comment": "Bots deal this fraction of rocket and mine damage.",
-      "value": 0.3
+      "value": 1
     },
     "fastTopSpeedMultiplier": {
       "comment": "During a boost, top speed is maxSpeedKmh times this number.",
