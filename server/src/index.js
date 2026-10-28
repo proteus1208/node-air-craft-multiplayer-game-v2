@@ -487,7 +487,10 @@ function roomPayload(room) {
     teams: [
       { id: 'a', name: 'Team A', color: '#ff3b46', members: countTeam('team:a'), locked: false },
       { id: 'b', name: 'Team B', color: '#3b82f6', members: countTeam('team:b'), locked: false },
-      ...[...room.teams.values()].map((team) => ({ id: team.id, name: team.name, color: team.color, members: countTeam(`team:${team.id}`), locked: true })),
+      ...[...room.teams.values()].flatMap((team) => {
+        const members = countTeam(`team:${team.id}`);
+        return members ? [{ id: team.id, name: team.name, color: team.color, members, locked: Boolean(team.password) }] : [];
+      }),
     ],
   };
 }
@@ -519,7 +522,6 @@ function createCustomTeam(room, name, password) {
   const cleanName = String(name || '').trim().slice(0, 24);
   const cleanPassword = String(password || '').slice(0, 32);
   if (!cleanName) return { error: 'Enter a team name.' };
-  if (!cleanPassword) return { error: 'Enter a team password.' };
   if ([...room.teams.values()].some((team) => team.name.toLowerCase() === cleanName.toLowerCase())) return { error: 'That team name is already used.' };
   const id = `c${Math.random().toString(36).slice(2, 8)}`;
   room.teams.set(id, { id, name: cleanName, password: cleanPassword, color: pickTeamColor(room) });
@@ -532,7 +534,7 @@ function validateTeamChoice(room, message) {
   if (choice === 'a' || choice === 'b' || choice === 'solo' || choice === '') return null;
   const custom = room.teams.get(choice);
   if (!custom) return 'That team is not in this room.';
-  if (custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
+  if (custom.password && custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
   return null;
 }
 
@@ -560,7 +562,7 @@ function applyTeamChoice(room, player, message) {
   }
   const custom = room.teams.get(choice);
   if (!custom) return 'That team is not in this room.';
-  if (custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
+  if (custom.password && custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
   player.teamId = `team:${custom.id}`;
   player.teamName = custom.name;
   player.teamColor = custom.color;
@@ -1381,11 +1383,11 @@ export function handleConnection(socket) {
       if (message.type === 'leave') {
         const roomId = releasePlayer(socket);
         socket.playerId = null;
+        const room = roomId ? rooms.get(roomId) : null;
+        if (room) sendRoom(room);
         if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
         else maintainBotPopulation(roomId);
-        const room = roomId ? rooms.get(roomId) : null;
         broadcastSnapshot();
-        if (room) sendRoom(room);
         return;
       }
       const player = socket.playerId ? players.get(socket.playerId) : null;
@@ -1430,10 +1432,10 @@ export function handleConnection(socket) {
     releaseVisit(socket);
     if (socket.playerId) {
       const roomId = releasePlayer(socket);
-      if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
-      else maintainBotPopulation(roomId);
       const room = roomId ? rooms.get(roomId) : null;
       if (room) sendRoom(room);
+      if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
+      else maintainBotPopulation(roomId);
     }
     broadcastSnapshot();
     console.log('Client disconnected');

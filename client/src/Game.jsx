@@ -666,7 +666,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       <aside className="ranking-board" aria-label="Flight ranking">
         <strong className="ranking-board__title">FLIGHT RANKING</strong>
         {rankingPlayers.map((player, index) => <div className={`ranking-board__row ${player.id === playerId ? 'ranking-board__row--self' : ''}`} key={player.id}>
-          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
+          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'} style={player.teamColor ? { color: player.teamColor } : undefined}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
         </div>)}
       </aside>
 

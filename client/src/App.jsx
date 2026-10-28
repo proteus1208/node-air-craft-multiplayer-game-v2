@@ -125,6 +125,7 @@ export default function App() {
   const [joinPassword, setJoinPassword] = useState('');
   const [customName, setCustomName] = useState('');
   const [customPassword, setCustomPassword] = useState('');
+  const [creatingTeam, setCreatingTeam] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
   const [voteCount, setVoteCount] = useState(null);
   const [visitors, setVisitors] = useState(null);
@@ -267,7 +268,12 @@ export default function App() {
         setRoomInfo(data);
         setRoomError('');
         setLobbyOpen(true);
-        if (data.joinedTeam) setTeamChoice(data.joinedTeam);
+        if (data.joinedTeam) {
+          setTeamChoice(data.joinedTeam);
+          setCreatingTeam(false);
+          setCustomName('');
+          setCustomPassword('');
+        }
       }
       else if (data.type === 'room-error') {
         setRoomError(data.message || 'Could not open that room.');
@@ -365,6 +371,7 @@ export default function App() {
       />
       {settingsOpen && <div className="game-settings-backdrop"><section className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="game-settings-title">
         <button className="settings-panel__back menu__button--primary" type="button" onClick={() => { setSettingsOpen(false); setListeningFor(''); setKeyError(''); }}><span aria-hidden="true">←</span> Back to flight</button>
+        <div className="settings-panel__scroll">
         <div className="settings-panel__heading"><span className="settings-panel__eyebrow">FLIGHT CONTROLS</span><h1 id="game-settings-title">Settings</h1><p>Change keys without leaving your flight.</p></div>
         <div className="controls-list">{controlLabels.map(([name, label]) => <div className="control-row" key={name}><span className="control-row__label">{label}</span><button className={`key-button ${listeningFor === name ? 'key-button--listening' : ''}`} type="button" onClick={() => { setListeningFor(name); setKeyError(''); }} aria-label={`Set key for ${label}, currently ${formatKey(controls[name])}`}>{listeningFor === name ? 'PRESS A KEY' : formatKey(controls[name])}</button></div>)}</div>
         <div className="team-settings">
@@ -373,6 +380,7 @@ export default function App() {
           <small>Players with the same code share a team. A blank code means no team; bots also have no team.</small>
         </div>
         <p className="settings-panel__hint" aria-live="polite">{keyError || (listeningFor ? 'Press a key to assign it. Escape cancels.' : 'Select a key to change its binding.')}</p>
+        </div>
       </section></div>}
     </>;
   }
@@ -428,7 +436,8 @@ export default function App() {
         </div>
       </div> : null}
       {!settingsOpen && lobbyOpen && <section className="settings-panel room-lobby" aria-label="Custom room">
-        <button className="settings-panel__back menu__button--primary" type="button" onClick={() => { roomIdRef.current = ''; setRoomId(''); writeRoomId(''); setLobbyOpen(false); setRoomInfo(null); setRoomError(''); }}><span aria-hidden="true">←</span> Back</button>
+        <button className="settings-panel__back menu__button--primary" type="button" onClick={() => { roomIdRef.current = ''; setRoomId(''); writeRoomId(''); setLobbyOpen(false); setRoomInfo(null); setRoomError(''); setCreatingTeam(false); }}><span aria-hidden="true">←</span> Back</button>
+        <div className="settings-panel__scroll">
         <div className="settings-panel__heading">
           <span className="settings-panel__eyebrow">PRIVATE ROOM</span>
           <h1>Choose your team</h1>
@@ -441,23 +450,42 @@ export default function App() {
           {linkCopied ? 'Link copied' : 'Copy room link'}
         </button>
         {!roomInfo ? <p className="room-lobby__status">Opening room…</p> : <>
-          <div className="room-teams" role="list">
-            <button className={`room-team ${teamChoice === 'solo' ? 'room-team--selected' : ''}`} type="button" onClick={() => { setTeamChoice('solo'); setRoomError(''); }}><b>Individual</b><small>No team</small></button>
-            {roomInfo.teams.map((team) => <button className={`room-team ${teamChoice === team.id ? 'room-team--selected' : ''}`} style={{ '--team-color': team.color }} type="button" key={team.id} onClick={() => { setTeamChoice(team.id); setRoomError(''); }}>
-              <i aria-hidden="true" />
-              <b>{team.name}</b>
-              <small>{team.members} {team.members === 1 ? 'pilot' : 'pilots'}</small>
-            </button>)}
+          <div className="room-teams">
+            {['a', 'b'].map((id) => {
+              const team = roomInfo.teams.find((item) => item.id === id);
+              if (!team) return null;
+              return <button className={`menu__button menu__button--color ${teamChoice === team.id ? 'menu__button--selected' : ''}`} style={{ '--button-bg': team.color }} type="button" key={team.id} onClick={() => { setTeamChoice(team.id); setCreatingTeam(false); setRoomError(''); }}>
+                <span>{team.name}</span>
+                <small>{team.members} {team.members === 1 ? 'pilot' : 'pilots'}</small>
+                <span className="menu__shine" aria-hidden="true" />
+              </button>;
+            })}
+            <button className={`menu__button menu__button--color ${teamChoice === 'solo' ? 'menu__button--selected' : ''}`} style={{ '--button-bg': '#5f8fb3' }} type="button" onClick={() => { setTeamChoice('solo'); setCreatingTeam(false); setRoomError(''); }}>
+              <span>Individual</span>
+              <small>No team</small>
+              <span className="menu__shine" aria-hidden="true" />
+            </button>
+            <button className={`menu__button menu__button--color ${creatingTeam ? 'menu__button--selected' : ''}`} style={{ '--button-bg': '#e0a12a' }} type="button" onClick={() => { setCreatingTeam((open) => !open); setRoomError(''); }}>
+              <span>{creatingTeam ? 'Close' : 'Create team'}</span>
+              <small>Custom color</small>
+              <span className="menu__shine" aria-hidden="true" />
+            </button>
           </div>
+          {roomInfo.teams.some((team) => team.id !== 'a' && team.id !== 'b') && <div className="room-teams room-teams--extra">
+            {roomInfo.teams.filter((team) => team.id !== 'a' && team.id !== 'b').map((team) => <button className={`menu__button menu__button--color ${teamChoice === team.id ? 'menu__button--selected' : ''}`} style={{ '--button-bg': team.color }} type="button" key={team.id} onClick={() => { setTeamChoice(team.id); setCreatingTeam(false); setRoomError(''); }}>
+              <span>{team.name}</span>
+              <small>{team.members} {team.members === 1 ? 'pilot' : 'pilots'}{team.locked ? ' · locked' : ''}</small>
+              <span className="menu__shine" aria-hidden="true" />
+            </button>)}
+          </div>}
           {roomInfo.teams.some((team) => team.id === teamChoice && team.locked) && <label className="room-lobby__link">Team password
             <input type="password" maxLength={32} value={joinPassword} placeholder="Password for this team" onChange={(event) => setJoinPassword(event.target.value)} />
           </label>}
-          <form className="room-create-team" onSubmit={(event) => { event.preventDefault(); if (!customName.trim() || !customPassword) { setRoomError('Enter a team name and password.'); return; } setJoinPassword(customPassword); setRoomError(''); sendGameMessage({ type: 'create-team', roomId, name: customName.trim(), password: customPassword }); }}>
-            <strong>Create custom team</strong>
+          {creatingTeam && <form className="room-create-team" onSubmit={(event) => { event.preventDefault(); if (!customName.trim()) { setRoomError('Enter a team name.'); return; } setJoinPassword(customPassword); setRoomError(''); sendGameMessage({ type: 'create-team', roomId, name: customName.trim(), password: customPassword }); }}>
             <input maxLength={24} value={customName} placeholder="Team name" onChange={(event) => setCustomName(event.target.value)} />
-            <input type="password" maxLength={32} value={customPassword} placeholder="Team password" onChange={(event) => setCustomPassword(event.target.value)} />
-            <button className="menu__button menu__button--secondary" type="submit">Create team</button>
-          </form>
+            <input type="password" maxLength={32} value={customPassword} placeholder="Password (optional)" onChange={(event) => setCustomPassword(event.target.value)} />
+            <button className="menu__button menu__button--primary" type="submit"><span>Create team</span><span className="menu__shine" aria-hidden="true" /></button>
+          </form>}
           <button className="menu__button menu__button--primary" type="button" disabled={!roomInfo} onClick={() => {
             const selected = roomInfo.teams.find((team) => team.id === teamChoice);
             if (selected?.locked && !joinPassword) { setRoomError('Enter the team password.'); return; }
@@ -465,14 +493,16 @@ export default function App() {
             setRoomError('');
             setLobbyOpen(false);
             setGamePage(true);
-          }}><span className="menu__icon" aria-hidden="true">▶</span><span>Enter room</span></button>
+          }}><span className="menu__icon" aria-hidden="true">▶</span><span>Enter room</span><span className="menu__shine" aria-hidden="true" /></button>
         </>}
         {roomError && <p className="room-lobby__error" role="alert">{roomError}</p>}
+        </div>
       </section>}
       {settingsOpen && <section className="settings-panel" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <button className="settings-panel__back menu__button--primary" type="button" onClick={() => { setSettingsOpen(false); setListeningFor(''); setKeyError(''); }}>
           <span aria-hidden="true">←</span> Back
         </button>
+        <div className="settings-panel__scroll">
         <div className="settings-panel__heading">
           <span className="settings-panel__eyebrow">FLIGHT CONTROLS</span>
           <h1 id="settings-title">Settings</h1>
@@ -494,6 +524,7 @@ export default function App() {
           <small>Players with the same code share a team. A blank code means no team; bots also have no team.</small>
         </div>
         <p className="settings-panel__hint" aria-live="polite">{keyError || (listeningFor ? 'Press any key to assign it. Press Escape to cancel.' : 'Select a key to change its binding.')}</p>
+        </div>
       </section>}
       <span className="landing__version" aria-hidden="true">AIR PLAIN · MULTIPLAYER</span>
       {nameModalOpen && <div className="name-modal-backdrop">
