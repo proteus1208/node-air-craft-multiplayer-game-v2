@@ -30,7 +30,7 @@
     "maxHp": {
       "comment": "Maximum health.",
       "level1": 100,
-      "level15": 240
+      "level15": 300
     },
     "treatmentPerSecond": {
       "comment": "Health restored every second while alive.",

@@ -165,25 +165,27 @@ function createWorld() {
 }
 
 const huntByRoom = new Map();
+const crownByRoom = new Map();
 const VIRTUAL_TEAM_ID = 'team:united';
 
 function refreshHuntState() {
   huntByRoom.clear();
+  crownByRoom.clear();
   const grouped = new Map();
   for (const player of players.values()) {
-    if (player.isBot) continue;
     const key = player.roomId || '';
     const list = grouped.get(key);
     if (list) list.push(player);
     else grouped.set(key, [player]);
   }
-  for (const [key, humans] of grouped) {
-    const aces = humans.filter((player) => player.level >= MAX_LEVEL);
-    if (!aces.length) continue;
-    aces.sort((a, b) => b.kills - a.kills || b.score - a.score || (a.id < b.id ? -1 : 1));
+  for (const [key, roomPlayers] of grouped) {
+    const ranked = [...roomPlayers].sort((a, b) => b.level - a.level || b.kills - a.kills || b.score - a.score || (a.id < b.id ? -1 : 1));
+    if (ranked.length) crownByRoom.set(key, ranked[0].id);
+    const humanAces = roomPlayers.filter((player) => !player.isBot && player.level >= MAX_LEVEL);
+    if (!humanAces.length) continue;
     const bossTeams = new Set();
     const labels = [];
-    for (const ace of aces) {
+    for (const ace of humanAces) {
       if (!ace.teamId) {
         labels.push(ace.name);
         continue;
@@ -192,15 +194,14 @@ function refreshHuntState() {
       bossTeams.add(ace.teamId);
       labels.push(ace.teamName || (ace.teamId === 'team:a' ? 'Team A' : ace.teamId === 'team:b' ? 'Team B' : 'Team'));
     }
-    huntByRoom.set(key, { bossTeams, crownId: aces[0].id, label: `United vs ${labels.join(', ')}` });
+    huntByRoom.set(key, { bossTeams, label: `United vs ${labels.join(', ')}` });
   }
 }
 
 function playerMark(player) {
-  if (player.isBot || player.level < MAX_LEVEL) return '';
-  const hunt = huntByRoom.get(player.roomId || '');
-  if (!hunt) return '';
-  return player.id === hunt.crownId ? 'c' : 'm';
+  const demon = player.level >= MAX_LEVEL ? 'm' : '';
+  const crown = player.id === crownByRoom.get(player.roomId || '') ? 'c' : '';
+  return demon + crown;
 }
 
 function getEffectiveTeamId(player) {
