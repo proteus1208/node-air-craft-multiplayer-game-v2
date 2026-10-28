@@ -116,7 +116,7 @@ function readDebugFlag() {
   return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug');
 }
 
-export default function Game({ world, playerName, playerId, gameState, net, connectionStatus = 'connected', controls, teamCode, teamDamageEnabled, roomId = '', team = 'solo', teamPassword = '', sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
+export default function Game({ world, playerName, playerId, gameState, net, connectionStatus = 'connected', controls, roomId = '', team = '', teamPassword = '', flying = false, sendMessage, onBack, onSettings, settingsOpen = false, soundOn = true, onToggleSound }) {
   const heldKeys = useRef(new Set());
   const weaponReadyRef = useRef({ rocket: true, mine: true });
   const touchAnalog = useRef({ yaw: 0, throttle: 0 });
@@ -135,6 +135,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
   const [debugStats, setDebugStats] = useState(null);
   const [banners, setBanners] = useState([]);
   const [hitCombo, setHitCombo] = useState({ count: 0, pulse: 0 });
+  const [teamWarning, setTeamWarning] = useState(0);
   const hitResetAt = useRef(0);
   const hitCountRef = useRef(0);
   const [weaponPress, setWeaponPress] = useState({ type: '', serial: 0 });
@@ -358,6 +359,8 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
             hitCountRef.current = stamp > hitResetAt.current ? 1 : hitCountRef.current + 1;
             hitResetAt.current = stamp + 3000;
             pulsed = true;
+          } else if (event[0] === 'w') {
+            setTeamWarning((count) => count + 1);
           } else if (event[0] === 'k') {
             notices.push({ id: `${stamp}-k-${notices.length}`, kind: 'kill', text: `You just killed ${event[1]}` });
           } else if (event[0] === 'l') {
@@ -412,6 +415,13 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
   }, [debugOpen, net]);
 
   useEffect(() => {
+    if (!teamWarning) return undefined;
+    const timer = window.setTimeout(() => setTeamWarning(0), 1600);
+    return () => window.clearTimeout(timer);
+  }, [teamWarning]);
+
+  useEffect(() => {
+    if (!flying) return undefined;
     if (net) {
       net.predicted = null;
       net.me = null;
@@ -419,12 +429,12 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       net.meta = new Map();
       net.fx = [];
     }
-    sendMessage({ type: 'join', id: playerId, name: playerName, teamCode, teamDamageEnabled, roomId, team, teamPassword });
+    sendMessage({ type: 'join', id: playerId, name: playerName, roomId, team, teamPassword });
     return () => {
       heldKeys.current.clear();
       sendInput({});
     };
-  }, [playerId, playerName, teamCode, teamDamageEnabled, roomId, team, teamPassword, sendMessage]);
+  }, [flying, playerId, playerName, roomId, team, teamPassword, sendMessage]);
 
   useEffect(() => {
     const keyToControl = new Map(Object.entries(controls).map(([name, key]) => [key.toLowerCase(), name]));
@@ -437,7 +447,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         setDebugOpen((open) => !open);
         return;
       }
-      if (settingsOpen) return;
+      if (!flying || settingsOpen) return;
       const key = event.key.toLowerCase();
       const control = keyToControl.get(key);
       if (!control) return;
@@ -485,7 +495,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('blur', onBlur);
     };
-  }, [controls, sendMessage, settingsOpen]);
+  }, [controls, flying, sendMessage, settingsOpen]);
 
   useEffect(() => {
     if (settingsOpen) {
@@ -577,7 +587,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
           {(stateForDisplay?.mines ?? []).filter((mine) => mine.visible).map((mine) => { const marker = enemyMarkerSize({ type: 'mine', ownerIsBot: mine.ownerIsBot }, cameraScale); return <i className={'world-mine ' + (mine.armed ? 'world-mine--armed ' : '') + (isEnemyWeapon(mine) ? 'world-mine--enemy' : '')} key={mine.id} style={{ ...weaponImageStyle({ type: 'mine', variant: mine.variant, ownerIsBot: mine.ownerIsBot }, cameraScale), left: mine.x, top: mine.y }}>{isEnemyWeapon(mine) && <i className="world-weapon-enemy-marker" style={{ width: marker, height: marker }} aria-hidden="true" />}</i>; })}
           {(stateForDisplay?.blasts ?? []).map((blast) => <i className="map-object world-blast" key={blast.id} style={blastStyle(blast)} aria-hidden="true" />)}
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
-        {world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
+        {flying && world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
           <div className="aircraft-tag">
             <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span style={ownPlayer.teamColor ? { color: ownPlayer.teamColor } : undefined}>{ownPlayer.name}</span></strong>
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
@@ -601,7 +611,6 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       </div>}
 
       <img className="danger-overlay" src="/assets/danger.png" alt="" aria-hidden="true" style={{ opacity: dangerOpacity }} />
-      {hitCombo.count > 0 && <div className="hit-toast" key={hitCombo.pulse} aria-live="polite">HIT × {hitCombo.count}</div>}
       <div className="combat-banners" aria-live="polite">
         {banners.map((banner) => <strong className={`combat-banner combat-banner--${banner.kind}`} key={banner.id}>{banner.text}</strong>)}
       </div>
@@ -663,12 +672,16 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         </div>
       </aside>
 
+      <div className="ranking-stack">
       <aside className="ranking-board" aria-label="Flight ranking">
         <strong className="ranking-board__title">FLIGHT RANKING</strong>
         {rankingPlayers.map((player, index) => <div className={`ranking-board__row ${player.id === playerId ? 'ranking-board__row--self' : ''}`} key={player.id}>
           <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'} style={player.teamColor ? { color: player.teamColor } : undefined}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
         </div>)}
       </aside>
+      {hitCombo.count > 0 && <div className="hit-toast" key={hitCombo.pulse} aria-live="polite">HIT × {hitCombo.count}</div>}
+      {teamWarning > 0 && <div className="hit-toast hit-toast--warn" key={`team-${teamWarning}`} aria-live="polite">Team damage 20%</div>}
+      </div>
 
       {world && <aside className="mini-map" aria-label="Full map overview">
         <div className="mini-map__label">WORLD MAP</div>

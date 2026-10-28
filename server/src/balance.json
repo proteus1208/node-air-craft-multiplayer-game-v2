@@ -271,8 +271,8 @@
       "value": 0.58
     },
     "teamBlastDamageMultiplier": {
-      "comment": "Teammates take this fraction of blast damage when team damage is on.",
-      "value": 0.5
+      "comment": "Teammates always take this fraction of blast damage.",
+      "value": 0.2
     },
     "blastFalloffMin": {
       "comment": "Splash damage at the edge of a blast is at least this fraction of the direct hit. 0.12 means 12%.",

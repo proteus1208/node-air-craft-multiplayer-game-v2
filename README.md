@@ -13,10 +13,6 @@
   <a href="https://node-air-craft-multiplayer-game-v2.vercel.app"><strong>▶ Play now</strong></a>
 </p>
 
-<p align="center">
-  <img src="docs/playing.gif" alt="A live flight with ranking, air speed, rockets, mines, and the world map" width="100%">
-</p>
-
 <p align="center"><em>One sky. Every pilot on the map. Your team in its own color.</em></p>
 
 ## What you fly
@@ -52,4 +48,4 @@ Vercel pins each socket to one function instance and closes it at the plan durat
 - `server/src/` — WebSocket server, rooms, teams, and combat.
 - `client/src/` — React flight view, menu, and network client.
 - `client/public/assets/` — images, audio, and other static game assets.
-- `docs/` — the menu still and the flight clip used above.
+- `docs/` — the menu still used above.

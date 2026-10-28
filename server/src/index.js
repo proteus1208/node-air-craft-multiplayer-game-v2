@@ -110,6 +110,7 @@ let lastBroadcastAt = 0;
 let snapshotSeq = 0;
 const metaByRoom = new Map();
 const rooms = new Map();
+const publicRoom = { id: '', permanent: true, createdAt: Date.now(), teams: new Map() };
 const customTeamColors = ['#f5c542', '#3ddc97', '#c084fc', '#fb923c', '#22d3ee', '#f472b6', '#a3e635', '#e879f9', '#fbbf24', '#34d399'];
 
 function createWorld() {
@@ -479,11 +480,12 @@ function humansInRoom(roomId) {
 }
 
 function roomPayload(room) {
-  const members = [...players.values()].filter((player) => !player.isBot && player.roomId === room.id);
+  const roomKey = room.permanent ? null : room.id;
+  const members = [...players.values()].filter((player) => !player.isBot && sameRoom(player.roomId, roomKey));
   const countTeam = (teamId) => members.filter((player) => player.teamId === teamId).length;
   return {
     type: 'room',
-    roomId: room.id,
+    roomId: room.permanent ? '' : room.id,
     teams: [
       { id: 'a', name: 'Team A', color: '#ff3b46', members: countTeam('team:a'), locked: false },
       { id: 'b', name: 'Team B', color: '#3b82f6', members: countTeam('team:b'), locked: false },
@@ -495,13 +497,20 @@ function roomPayload(room) {
   };
 }
 
+function lookupRoom(roomId) {
+  if (!roomId || roomId === 'public') return publicRoom;
+  return rooms.get(roomId) || null;
+}
+
 function sendRoom(room) {
   if (!room) return;
   const payload = JSON.stringify(roomPayload(room));
+  const roomKey = room.permanent ? null : room.id;
   for (const client of sockets) {
     if (client.readyState !== 1) continue;
-    const playing = client.playerId && players.get(client.playerId)?.roomId === room.id;
-    if (client.watchRoom === room.id || playing) client.send(payload);
+    const playing = client.playerId && sameRoom(players.get(client.playerId)?.roomId, roomKey);
+    const watching = room.permanent ? client.watchRoom === 'public' : client.watchRoom === room.id;
+    if (watching || playing) client.send(payload);
   }
 }
 
@@ -529,38 +538,30 @@ function createCustomTeam(room, name, password) {
 }
 
 function validateTeamChoice(room, message) {
-  if (!room) return null;
-  const choice = String(message.team || 'solo');
-  if (choice === 'a' || choice === 'b' || choice === 'solo' || choice === '') return null;
-  const custom = room.teams.get(choice);
+  const choice = String(message.team || '');
+  if (choice === 'a' || choice === 'b' || choice === 'solo') return null;
+  if (!choice) return 'Choose a team.';
+  const custom = room?.teams.get(choice);
   if (!custom) return 'That team is not in this room.';
   if (custom.password && custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
   return null;
 }
 
 function applyTeamChoice(room, player, message) {
-  const choice = String(message.team || 'solo');
-  player.teamDamageEnabled = Boolean(message.teamDamageEnabled);
-  if (!room) {
-    const teamCode = typeof message.teamCode === 'string' ? message.teamCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, fixed('nameMaxLength')) : '';
-    player.teamId = teamCode ? `team:${teamCode}` : null;
-    player.teamName = teamCode;
-    player.teamColor = '';
-    return null;
-  }
+  const choice = String(message.team || '');
   if (choice === 'a' || choice === 'b') {
     player.teamId = `team:${choice}`;
     player.teamName = choice === 'a' ? 'Team A' : 'Team B';
     player.teamColor = choice === 'a' ? '#ff3b46' : '#3b82f6';
     return null;
   }
-  if (choice === 'solo' || choice === '') {
+  if (choice === 'solo') {
     player.teamId = null;
     player.teamName = '';
     player.teamColor = '';
     return null;
   }
-  const custom = room.teams.get(choice);
+  const custom = room?.teams.get(choice);
   if (!custom) return 'That team is not in this room.';
   if (custom.password && custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
   player.teamId = `team:${custom.id}`;
@@ -679,7 +680,7 @@ function grantExperience(player, amount) {
   if (addExperience(player, amount) > 0) pushFx(player, ['l', player.level]);
 }
 
-function damagePlayer(victim, damage, ownerId) {
+function damagePlayer(victim, damage, ownerId, teamHit = false) {
   if (Date.now() < victim.invulnerableUntil) return;
   const previousHp = victim.hp;
   const victimLevel = victim.level;
@@ -687,7 +688,7 @@ function damagePlayer(victim, damage, ownerId) {
   victim.hp = Math.max(0, victim.hp - damage);
   const attacker = players.get(ownerId);
   if (attacker && attacker.id !== victim.id && attacker.hp > 0 && sameRoom(attacker.roomId, victim.roomId)) {
-    if (victim.hp < previousHp) pushFx(attacker, ['h']);
+    if (victim.hp < previousHp) pushFx(attacker, [teamHit ? 'w' : 'h']);
     if (victim.hp === 0 && previousHp > 0) {
       const levelDifference = victimLevel - attacker.level;
       attacker.kills += 1;
@@ -717,11 +718,10 @@ function applyBlastDamage(x, y, radius, baseDamage, ownerId, ownerTeamId, teamDa
     const distance = Math.hypot(player.x - x, player.y - y);
     if (distance > radius) continue;
     const sameTeam = Boolean(ownerTeamId) && getEffectiveTeamId(player) === ownerTeamId;
-    if (sameTeam && !teamDamageEnabled) continue;
     const damage = player.id === directHitId ? baseDamage : baseDamage * Math.max(fixed('blastFalloffMin'), 1 - distance / radius);
     const previousHp = player.hp;
     const victimMaxHp = levelStats(player.level).maxHp;
-    damagePlayer(player, sameTeam ? damage * fixed('teamBlastDamageMultiplier') : damage, ownerId);
+    damagePlayer(player, sameTeam ? damage * fixed('teamBlastDamageMultiplier') : damage, ownerId, sameTeam);
     const actualDamage = previousHp - player.hp;
     if (slowDurationMs > 0 && actualDamage > 0 && player.hp > 0) applyMineSlow(player, Date.now(), slowDurationMs);
     const shooter = healShooter && actualDamage > 0 ? players.get(ownerId) : null;
@@ -1172,7 +1172,7 @@ function stepWorld(now, delta) {
         .map((player) => ({ player, distance: Math.hypot(player.x - mine.x, player.y - mine.y) }))
         .filter(({ player, distance }) => {
           const sameTeam = Boolean(mine.ownerTeamId) && getEffectiveTeamId(player) === mine.ownerTeamId;
-          return distance <= (player.isBot ? fixed('botMineTriggerRadius') : fixed('playerMineTriggerRadius')) * fixed('mineTriggerScale') && (!sameTeam || mine.teamDamageEnabled);
+          return distance <= (player.isBot ? fixed('botMineTriggerRadius') : fixed('playerMineTriggerRadius')) * fixed('mineTriggerScale');
         })
         .sort((a, b) => a.distance - b.distance)[0]?.player;
       if (target) {
@@ -1322,17 +1322,17 @@ export function handleConnection(socket) {
         return;
       }
       if (message.type === 'room-info' && typeof message.roomId === 'string') {
-        const room = rooms.get(message.roomId);
+        const room = lookupRoom(message.roomId);
         if (!room) {
           socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
           return;
         }
-        socket.watchRoom = room.id;
+        socket.watchRoom = room.permanent ? 'public' : room.id;
         socket.send(JSON.stringify(roomPayload(room)));
         return;
       }
       if (message.type === 'create-team' && typeof message.roomId === 'string') {
-        const room = rooms.get(message.roomId);
+        const room = lookupRoom(message.roomId);
         if (!room) {
           socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
           return;
@@ -1342,14 +1342,14 @@ export function handleConnection(socket) {
           socket.send(JSON.stringify({ type: 'room-error', message: created.error }));
           return;
         }
-        socket.watchRoom = room.id;
+        socket.watchRoom = room.permanent ? 'public' : room.id;
         socket.send(JSON.stringify({ ...roomPayload(room), joinedTeam: created.id }));
         sendRoom(room);
         return;
       }
       if (message.type === 'join' && typeof message.id === 'string') {
-        const requestedRoom = typeof message.roomId === 'string' && message.roomId ? message.roomId : null;
-        const room = requestedRoom ? rooms.get(requestedRoom) : null;
+        const requestedRoom = typeof message.roomId === 'string' && message.roomId ? message.roomId : '';
+        const room = lookupRoom(requestedRoom);
         if (requestedRoom && !room) {
           socket.send(JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' }));
           return;
@@ -1364,15 +1364,16 @@ export function handleConnection(socket) {
           if (previousRoom && humansInRoom(previousRoom) === 0) releaseRoomIfEmpty(previousRoom);
           else maintainBotPopulation(previousRoom);
         }
+        const joinedRoomId = room.permanent ? null : room.id;
         socket.playerId = message.id;
-        if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name, false, room?.id || null));
+        if (!players.has(socket.playerId)) players.set(socket.playerId, createPlayer(socket.playerId, message.name, false, joinedRoomId));
         const joinedPlayer = players.get(socket.playerId);
         if (joinedPlayer.socket !== socket) joinedPlayer.inputSeq = 0;
         joinedPlayer.socket = socket;
-        joinedPlayer.roomId = room?.id || null;
+        joinedPlayer.roomId = joinedRoomId;
         joinedPlayer.name = String(message.name || 'Pilot').slice(0, fixed('nameMaxLength'));
         applyTeamChoice(room, joinedPlayer, message);
-        socket.watchRoom = room?.id || null;
+        socket.watchRoom = room.permanent ? 'public' : room.id;
         socket.needsHud = true;
         maintainBotPopulation(joinedPlayer.roomId);
         broadcastMeta(Date.now(), joinedPlayer.roomId, true);
@@ -1383,7 +1384,7 @@ export function handleConnection(socket) {
       if (message.type === 'leave') {
         const roomId = releasePlayer(socket);
         socket.playerId = null;
-        const room = roomId ? rooms.get(roomId) : null;
+        const room = roomId ? rooms.get(roomId) : publicRoom;
         if (room) sendRoom(room);
         if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
         else maintainBotPopulation(roomId);
@@ -1432,7 +1433,7 @@ export function handleConnection(socket) {
     releaseVisit(socket);
     if (socket.playerId) {
       const roomId = releasePlayer(socket);
-      const room = roomId ? rooms.get(roomId) : null;
+      const room = roomId ? rooms.get(roomId) : publicRoom;
       if (room) sendRoom(room);
       if (roomId && humansInRoom(roomId) === 0) releaseRoomIfEmpty(roomId);
       else maintainBotPopulation(roomId);
