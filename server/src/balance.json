@@ -65,8 +65,8 @@
     },
     "rocketRange": {
       "comment": "How far a rocket flies before it disappears, in world pixels.",
-      "level1": 900,
-      "level15": 4400
+      "level1": 700,
+      "level15": 2000
     },
     "rocketPrepareMs": {
       "comment": "Wait after a launch before the next rocket can fire. This blocks the button even when ammo remains. It is separate from rocketChargeMs, which only refills ammo.",
