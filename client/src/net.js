@@ -54,8 +54,9 @@ export function noteBytes(net, byteLength, now) {
   }
 }
 
-export function noteMeta(net, rows) {
-  net.meta = new Map(rows.map(([id, name, teamId, level, maxHp, isBot, score, kills, planeTier, spawnedAt, teamColor, teamName]) => [id, { name, teamId, level, maxHp, isBot: Boolean(isBot), score, kills, planeTier, spawnedAt, teamColor: teamColor || '', teamName: teamName || '' }]));
+export function noteMeta(net, rows, hunt = '') {
+  net.hunt = hunt || '';
+  net.meta = new Map(rows.map(([id, name, teamId, level, maxHp, isBot, score, kills, planeTier, spawnedAt, teamColor, teamName, mark]) => [id, { name, teamId, level, maxHp, isBot: Boolean(isBot), score, kills, planeTier, spawnedAt, teamColor: teamColor || '', teamName: teamName || '', mark: mark || '' }]));
 }
 
 export function notePong(net, sentAt, now) {
@@ -98,6 +99,7 @@ function playerFromRow(net, [id, x, y, angle, hp, flags]) {
     isBot: meta?.isBot ?? id.startsWith('bot-'),
     score: meta?.score ?? 0,
     kills: meta?.kills ?? 0,
+    mark: meta?.mark || '',
     planeTier: meta?.planeTier,
     spawnedAt: meta?.spawnedAt ?? 0,
     spawnProtectionRemainingMs: flags & 1 ? 1 : 0,

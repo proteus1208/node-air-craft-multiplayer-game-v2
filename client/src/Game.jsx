@@ -99,6 +99,7 @@ function teamRingSize(cameraScale = 1) {
 }
 
 function teamLabel(player) {
+  if (player.teamId === 'team:united') return player.teamName || 'United';
   if (player.teamName) return player.teamName;
   if (player.teamId === 'team:a') return 'A';
   if (player.teamId === 'team:b') return 'B';
@@ -577,7 +578,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
           {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <div className={`aircraft-entity ${player.id === playerId ? 'aircraft-entity--self' : (player.isBot ? 'aircraft-entity--bot' : '')} ${player.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected' : ''} ${trackedTargetIds.has(player.id) ? 'aircraft-entity--tracked' : ''}`} key={player.id} ref={entityRef('players', player.id)} style={hiddenUntilPlaced}>
             {ownPlayer.teamId && player.teamId === ownPlayer.teamId && player.id !== playerId && <i className="aircraft-team-ring" style={{ width: teamRingSize(cameraScale), height: teamRingSize(cameraScale) }} aria-hidden="true" />}
             <div className="aircraft-tag" style={{ zoom: 1 / cameraScale }}>
-              <strong><span className="aircraft-tag__level">LV {player.level}</span><span style={player.teamColor ? { color: player.teamColor } : undefined}>{player.name}</span></strong>
+              <strong><span className="aircraft-tag__level">{player.mark === 'c' && <i className="level-crown" aria-hidden="true" />}LV {player.level}</span><span style={player.teamColor ? { color: player.teamColor } : undefined}>{player.name}</span></strong>
               <span className="aircraft-tag__hp"><i style={{ width: `${Math.max(0, (player.hp / player.maxHp) * 100)}%`, backgroundColor: healthColor(player.hp, player.maxHp) }} /></span>
             </div>
             <div className="map-player" style={aircraftStyle(player, cameraScale)} role="img" aria-label={`Plane for ${player.name}`} />
@@ -589,7 +590,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         </div> : <div className="game-loading" role="status">Preparing your world…</div>}
         {flying && world && ownPlayer.hp > 0 && <div className={'aircraft-entity aircraft-entity--self ' + (ownPlayer.spawnProtectionRemainingMs > 0 ? 'aircraft-entity--spawn-protected ' : '') + (trackedTargetIds.has(playerId) ? 'aircraft-entity--tracked' : '')} style={{ left: '50%', top: '50%', transform: 'translate3d(-50%, -50%, 0) scale(' + uiScale + ')' }}>
           <div className="aircraft-tag">
-            <strong><span className="aircraft-tag__level">LV {ownPlayer.level}</span><span style={ownPlayer.teamColor ? { color: ownPlayer.teamColor } : undefined}>{ownPlayer.name}</span></strong>
+            <strong><span className="aircraft-tag__level">{ownPlayer.mark === 'c' && <i className="level-crown" aria-hidden="true" />}LV {ownPlayer.level}</span><span style={ownPlayer.teamColor ? { color: ownPlayer.teamColor } : undefined}>{ownPlayer.name}</span></strong>
             <span className="aircraft-tag__hp"><i style={{ width: String(Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)) + '%', backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></span>
           </div>
           <div className="map-player" ref={ownPlaneRef} style={aircraftStyle(ownPlayer)} role="img" aria-label={'Plane for ' + ownPlayer.name} />
@@ -628,7 +629,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       <header className="game-toolbar">
         <button className="game-toolbar__back menu__button--primary" type="button" onClick={onBack} aria-label="Back to menu" title="Back to menu"><span aria-hidden="true">←</span></button>
         <section className="flight-hud" aria-label="Aircraft status">
-          <div className="flight-hud__plane-level"><span>PLANE</span><strong>LEVEL {ownPlayer.level}</strong></div>
+          <div className="flight-hud__plane-level"><span>PLANE</span><strong>{ownPlayer.mark === 'c' && <i className="level-crown" aria-hidden="true" />}LEVEL {ownPlayer.level}</strong></div>
           <div className="flight-hud__meter">
             <div className="flight-hud__meter-label"><span>HP</span><strong>{Math.round(ownPlayer.hp)} / {Math.round(ownPlayer.maxHp)}</strong></div>
             <div className="flight-hud__track"><span className="flight-hud__health" style={{ width: `${Math.max(0, (ownPlayer.hp / ownPlayer.maxHp) * 100)}%`, backgroundColor: healthColor(ownPlayer.hp, ownPlayer.maxHp) }} /></div>
@@ -640,6 +641,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
         </section>
         <SoundButton className="game-toolbar__sound" soundOn={soundOn} onClick={onToggleSound} />
         <button className="top-actions__button game-toolbar__settings" type="button" onClick={onSettings} aria-label="Open settings" title="Settings">{gearIcon}</button>
+        {stateForDisplay?.hunt && <p className="hunt-status" role="status">{stateForDisplay.hunt}</p>}
       </header>
 
       <aside className="speed-board" aria-label={`Speed ${speedKmh} kilometers per hour, range ${minSpeedKmh} to ${maxSpeedKmh}`}>
@@ -676,7 +678,7 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       <aside className="ranking-board" aria-label="Flight ranking">
         <strong className="ranking-board__title">FLIGHT RANKING</strong>
         {rankingPlayers.map((player, index) => <div className={`ranking-board__row ${player.id === playerId ? 'ranking-board__row--self' : ''}`} key={player.id}>
-          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'} style={player.teamColor ? { color: player.teamColor } : undefined}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
+          <b>{index + 1}</b><span className="ranking-board__name">{player.name}{player.isBot && <small>BOT</small>}</span><span className="ranking-board__team" title={player.teamId ? teamLabel(player) : 'No team'} style={player.teamColor ? { color: player.teamColor } : undefined}>{teamLabel(player)}</span><span className="ranking-board__level" title="Current level">{player.mark === 'c' && <i className="level-crown" aria-hidden="true" />}L{player.level}</span><span className="ranking-board__kills" title="Kills since respawn">K{player.kills ?? 0}</span><strong title="Score">{player.score ?? 0}</strong>
         </div>)}
       </aside>
       {hitCombo.count > 0 && <div className="hit-toast" key={hitCombo.pulse} aria-live="polite">HIT × {hitCombo.count}</div>}
@@ -686,8 +688,8 @@ export default function Game({ world, playerName, playerId, gameState, net, conn
       {world && <aside className="mini-map" aria-label="Full map overview">
         <div className="mini-map__label">WORLD MAP</div>
         <div className="mini-map__surface">
-          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <i className={`mini-map__other-player ${player.isBot ? 'mini-map__other-player--bot' : ''}`} key={player.id} style={{ left: `${(player.x / world.width) * 100}%`, top: `${(player.y / world.height) * 100}%`, ...(!player.isBot && player.teamColor ? { '--map-dot': player.teamColor } : {}) }} />)}
-          <i className="mini-map__player" ref={miniPlayerRef} style={ownPlayer.teamColor ? { '--map-dot': ownPlayer.teamColor } : undefined} />
+          {visiblePlayers.filter((player) => player.id !== playerId).map((player) => <i className={`mini-map__other-player ${player.isBot ? 'mini-map__other-player--bot' : ''} ${player.mark === 'c' ? 'mini-map__other-player--crown' : player.mark === 'm' ? 'mini-map__other-player--monster' : ''}`} key={player.id} style={{ left: `${(player.x / world.width) * 100}%`, top: `${(player.y / world.height) * 100}%`, ...(!player.isBot && player.teamColor ? { '--map-dot': player.teamColor } : {}) }} />)}
+          <i className={`mini-map__player ${ownPlayer.mark === 'c' ? 'mini-map__player--crown' : ownPlayer.mark === 'm' ? 'mini-map__player--monster' : ''}`} ref={miniPlayerRef} style={ownPlayer.teamColor ? { '--map-dot': ownPlayer.teamColor } : undefined} />
           <span className="mini-map__view" ref={miniViewRef} aria-hidden="true" style={{ width: `${miniMapViewWidth}%`, height: `${miniMapViewHeight}%` }} />
         </div>
       </aside>}

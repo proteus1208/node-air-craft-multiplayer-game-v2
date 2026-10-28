@@ -243,8 +243,8 @@ export default function App() {
       lastStructure = structure;
       lastPublishAt = now;
       const ownId = flightRef.current?.id;
-      const players = net.hud && ownId ? decoded.players.map((player) => (player.id === ownId ? { ...player, ...net.hud, x: player.x, y: player.y, angle: player.angle, hp: player.hp } : player)) : decoded.players;
-      setGameState({ ...decoded, players });
+      const players = net.hud && ownId ? decoded.players.map((player) => (player.id === ownId ? { ...player, ...net.hud, x: player.x, y: player.y, angle: player.angle, hp: player.hp, level: player.level, kills: player.kills, score: player.score, name: player.name, teamId: player.teamId, teamName: player.teamName, teamColor: player.teamColor, mark: player.mark } : player)) : decoded.players;
+      setGameState({ ...decoded, players, hunt: net.hunt || '' });
     };
 
     const handleMessage = (event) => {
@@ -258,7 +258,10 @@ export default function App() {
         return;
       }
       if (data.type === 's') publish(decodeSnapshot(net, data, now), now);
-      else if (data.type === 'meta') noteMeta(net, data.p);
+      else if (data.type === 'meta') {
+        noteMeta(net, data.p, data.h);
+        setGameState((current) => (current ? { ...current, hunt: data.h || '' } : current));
+      }
       else if (data.type === 'pong') notePong(net, data.c, now);
       else if (data.type === 'room') {
         if (!acceptRoomRef.current) return;

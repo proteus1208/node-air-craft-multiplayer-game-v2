@@ -164,8 +164,52 @@ function createWorld() {
   return { width, height, clouds, objects };
 }
 
+const huntByRoom = new Map();
+const VIRTUAL_TEAM_ID = 'team:united';
+
+function refreshHuntState() {
+  huntByRoom.clear();
+  const grouped = new Map();
+  for (const player of players.values()) {
+    if (player.isBot) continue;
+    const key = player.roomId || '';
+    const list = grouped.get(key);
+    if (list) list.push(player);
+    else grouped.set(key, [player]);
+  }
+  for (const [key, humans] of grouped) {
+    const aces = humans.filter((player) => player.level >= MAX_LEVEL);
+    if (!aces.length) continue;
+    aces.sort((a, b) => b.kills - a.kills || b.score - a.score || (a.id < b.id ? -1 : 1));
+    const bossTeams = new Set();
+    const labels = [];
+    for (const ace of aces) {
+      if (!ace.teamId) {
+        labels.push(ace.name);
+        continue;
+      }
+      if (bossTeams.has(ace.teamId)) continue;
+      bossTeams.add(ace.teamId);
+      labels.push(ace.teamName || (ace.teamId === 'team:a' ? 'Team A' : ace.teamId === 'team:b' ? 'Team B' : 'Team'));
+    }
+    huntByRoom.set(key, { bossTeams, crownId: aces[0].id, label: `United vs ${labels.join(', ')}` });
+  }
+}
+
+function playerMark(player) {
+  if (player.isBot || player.level < MAX_LEVEL) return '';
+  const hunt = huntByRoom.get(player.roomId || '');
+  if (!hunt) return '';
+  return player.id === hunt.crownId ? 'c' : 'm';
+}
+
 function getEffectiveTeamId(player) {
-  return player.level >= MAX_LEVEL ? `team:level-${MAX_LEVEL}` : player.teamId;
+  if (player.isBot) return player.teamId;
+  const hunt = huntByRoom.get(player.roomId || '');
+  if (!hunt) return player.teamId;
+  if (player.level >= MAX_LEVEL) return player.teamId;
+  if (player.teamId && hunt.bossTeams.has(player.teamId)) return player.teamId;
+  return VIRTUAL_TEAM_ID;
 }
 
 function mineSlowDepth(player, now = Date.now()) {
@@ -405,6 +449,7 @@ function getPlayerSnapshot(player, now) {
     mineRechargeRemainingMs: mineReloadRemaining,
     mineChargeProgress: player.mineAmmo >= stats.mineCapacity ? 1 : Math.max(0, Math.min(1, 1 - mineReloadRemaining / stats.mineChargeMs)),
     mineDamage: stats.mineDamage,
+    mark: playerMark(player),
   };
 }
 
@@ -424,6 +469,7 @@ function playerMeta(player) {
     player.spawnedAt,
     player.teamColor || '',
     player.teamName || '',
+    playerMark(player),
   ];
 }
 
@@ -452,12 +498,15 @@ function ownerPrediction(player, now) {
 }
 
 function broadcastMeta(now, roomId = null, force = false) {
+  refreshHuntState();
   const key = roomId || '';
-  const metaJson = JSON.stringify([...players.values()].filter((player) => (player.roomId || '') === key).map(playerMeta));
+  const rows = [...players.values()].filter((player) => (player.roomId || '') === key).map(playerMeta);
+  const huntLabel = huntByRoom.get(key)?.label || '';
+  const metaJson = JSON.stringify(rows) + huntLabel;
   const previous = metaByRoom.get(key);
   if (!force && previous?.json === metaJson && now - previous.at < fixed('metaRefreshMs')) return;
   metaByRoom.set(key, { json: metaJson, at: now });
-  const payload = '{"type":"meta","p":' + metaJson + '}';
+  const payload = JSON.stringify({ type: 'meta', p: rows, h: huntLabel });
   for (const client of sockets) {
     if (client.readyState !== 1 || !client.playerId) continue;
     const player = players.get(client.playerId);
@@ -673,6 +722,7 @@ function addExperience(player, amount) {
     player.mineAmmo = Math.min(stats.mineCapacity, player.mineAmmo + 1);
     player.speed = Math.max(stats.minSpeedKmh, Math.min(stats.maxSpeedKmh, player.speed));
   }
+  if (player.level !== startLevel) refreshHuntState();
   return player.level - startLevel;
 }
 
@@ -929,6 +979,7 @@ function dropMine(player, now) {
 }
 
 function stepWorld(now, delta) {
+  refreshHuntState();
   for (let index = blasts.length - 1; index >= 0; index -= 1) {
     const blast = blasts[index];
     blast.frame = Math.min(fixed('blastFrameCount') - 1, Math.floor((now - blast.startedAt) / fixed('blastFrameMs')));
