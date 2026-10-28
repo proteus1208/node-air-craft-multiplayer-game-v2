@@ -535,6 +535,8 @@ function validateTeamChoice(room, message) {
   if (custom.password !== String(message.teamPassword || '')) return 'Wrong team password.';
   return null;
 }
+
+function applyTeamChoice(room, player, message) {
   const choice = String(message.team || 'solo');
   player.teamDamageEnabled = Boolean(message.teamDamageEnabled);
   if (!room) {
@@ -570,6 +572,10 @@ function releaseRoomIfEmpty(roomId) {
   for (const [id, player] of players) if (player.isBot && player.roomId === roomId) players.delete(id);
   rooms.delete(roomId);
   metaByRoom.delete(roomId);
+  const payload = JSON.stringify({ type: 'room-error', message: 'That room is no longer open.' });
+  for (const client of sockets) {
+    if (client.readyState === 1 && client.watchRoom === roomId) client.send(payload);
+  }
 }
 
 function broadcastSnapshot() {
@@ -679,6 +685,7 @@ function damagePlayer(victim, damage, ownerId) {
   victim.hp = Math.max(0, victim.hp - damage);
   const attacker = players.get(ownerId);
   if (attacker && attacker.id !== victim.id && attacker.hp > 0 && sameRoom(attacker.roomId, victim.roomId)) {
+    if (victim.hp < previousHp) pushFx(attacker, ['h']);
     if (victim.hp === 0 && previousHp > 0) {
       const levelDifference = victimLevel - attacker.level;
       attacker.kills += 1;
@@ -686,7 +693,6 @@ function damagePlayer(victim, damage, ownerId) {
       pushFx(attacker, ['k', victim.name]);
       grantExperience(attacker, Math.max(fixed('minKillXp'), fixed('killXpBase') + levelDifference * fixed('killXpPerLevelGap')));
     } else if (victim.hp > 0 && victim.hp < previousHp) {
-      pushFx(attacker, ['h']);
       grantExperience(attacker, Math.max(fixed('minHitXp'), Math.floor(damage * fixed('hitXpDamageRatio'))));
     }
   }
